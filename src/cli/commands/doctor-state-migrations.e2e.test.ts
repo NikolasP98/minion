@@ -88,8 +88,8 @@ const DIR_LINK_TYPE = process.platform === "win32" ? "junction" : "dir";
 
 function getStateDirMigrationPaths(root: string) {
   return {
-    targetDir: path.join(root, ".openclaw"),
-    legacyDir: path.join(root, ".clawdbot"),
+    targetDir: path.join(root, ".minion"),
+    legacyDir: path.join(root, ".openclaw"),
   };
 }
 
@@ -122,11 +122,15 @@ async function runAutoMigrateLegacyStateWithLog(params: {
   return { result, log };
 }
 
-function expectTargetAlreadyExistsWarning(result: StateDirMigrationResult, targetDir: string) {
-  expect(result.migrated).toBe(false);
-  expect(result.warnings).toEqual([
-    `State dir migration skipped: target already exists (${targetDir}). Remove or merge manually.`,
-  ]);
+function expectMergedAndSymlinked(
+  result: StateDirMigrationResult,
+  legacyDir: string,
+  targetDir: string,
+) {
+  expect(result.migrated).toBe(true);
+  expect(result.warnings).toEqual([]);
+  expect(fs.lstatSync(legacyDir).isSymbolicLink()).toBe(true);
+  expect(fs.realpathSync(legacyDir)).toBe(fs.realpathSync(targetDir));
 }
 
 describe("doctor legacy state migrations", () => {
@@ -474,21 +478,23 @@ describe("doctor legacy state migrations", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("warns when legacy state dir is empty and target already exists", async () => {
+  it("merges empty legacy state dir into target when both exist", async () => {
     const root = await makeTempRoot();
-    const { targetDir } = ensureLegacyAndTargetStateDirs(root);
+    const { targetDir, legacyDir } = ensureLegacyAndTargetStateDirs(root);
 
     const result = await runStateDirMigration(root);
-    expectTargetAlreadyExistsWarning(result, targetDir);
+    expectMergedAndSymlinked(result, legacyDir, targetDir);
   });
 
-  it("warns when legacy state dir contains non-symlink entries and target already exists", async () => {
+  it("merges legacy state dir with non-symlink entries into target when both exist", async () => {
     const root = await makeTempRoot();
     const { targetDir, legacyDir } = ensureLegacyAndTargetStateDirs(root);
     fs.writeFileSync(path.join(legacyDir, "sessions.json"), "{}", "utf-8");
 
     const result = await runStateDirMigration(root);
-    expectTargetAlreadyExistsWarning(result, targetDir);
+    expectMergedAndSymlinked(result, legacyDir, targetDir);
+    // File should have been moved to target
+    expect(fs.existsSync(path.join(targetDir, "sessions.json"))).toBe(true);
   });
 
   it("does not warn when legacy state dir contains nested symlink mirrors", async () => {
@@ -509,7 +515,7 @@ describe("doctor legacy state migrations", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("warns when legacy state dir symlink points outside the target tree", async () => {
+  it("merges legacy state dir with outside symlink into target when both exist", async () => {
     const root = await makeTempRoot();
     const { targetDir, legacyDir } = ensureLegacyAndTargetStateDirs(root);
     const outsideDir = path.join(root, ".outside-state");
@@ -519,10 +525,11 @@ describe("doctor legacy state migrations", () => {
     fs.symlinkSync(path.join(outsideDir), path.join(legacyDir, "sessions"), DIR_LINK_TYPE);
 
     const result = await runStateDirMigration(root);
-    expectTargetAlreadyExistsWarning(result, targetDir);
+    // sessions already exists in target, so the legacy symlink is discarded
+    expectMergedAndSymlinked(result, legacyDir, targetDir);
   });
 
-  it("warns when legacy state dir contains a broken symlink target", async () => {
+  it("merges legacy state dir with broken symlink into target when both exist", async () => {
     const root = await makeTempRoot();
     const { targetDir, legacyDir } = ensureLegacyAndTargetStateDirs(root);
     fs.mkdirSync(path.join(targetDir, "sessions"), { recursive: true });
@@ -532,10 +539,11 @@ describe("doctor legacy state migrations", () => {
     fs.rmSync(targetSessionDir, { recursive: true, force: true });
 
     const result = await runStateDirMigration(root);
-    expectTargetAlreadyExistsWarning(result, targetDir);
+    // broken symlink in legacy gets moved to target (sessions doesn't exist there anymore)
+    expectMergedAndSymlinked(result, legacyDir, targetDir);
   });
 
-  it("warns when legacy symlink escapes target tree through second-hop symlink", async () => {
+  it("merges legacy state dir with second-hop symlink into target when both exist", async () => {
     const root = await makeTempRoot();
     const { targetDir, legacyDir } = ensureLegacyAndTargetStateDirs(root);
     const outsideDir = path.join(root, ".outside-state");
@@ -546,6 +554,6 @@ describe("doctor legacy state migrations", () => {
     fs.symlinkSync(targetHop, path.join(legacyDir, "sessions"), DIR_LINK_TYPE);
 
     const result = await runStateDirMigration(root);
-    expectTargetAlreadyExistsWarning(result, targetDir);
+    expectMergedAndSymlinked(result, legacyDir, targetDir);
   });
 });

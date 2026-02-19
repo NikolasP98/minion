@@ -366,6 +366,61 @@ function isDirPath(filePath: string): boolean {
   }
 }
 
+/**
+ * Recursively merge entries from `srcDir` into `destDir`.
+ * - Entries that exist only in src are moved to dest.
+ * - Entries that exist in both: dest wins, src entry is removed.
+ * - Subdirectories are merged recursively.
+ * Returns the list of entries that were moved (for reporting).
+ */
+function mergeDirInto(srcDir: string, destDir: string): { moved: string[]; conflicts: string[] } {
+  const moved: string[] = [];
+  const conflicts: string[] = [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(srcDir, { withFileTypes: true });
+  } catch {
+    return { moved, conflicts };
+  }
+  for (const entry of entries) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    const destExists = fs.existsSync(destPath);
+    if (entry.isDirectory() && destExists && isDirPath(destPath)) {
+      // Both are directories — recurse
+      const sub = mergeDirInto(srcPath, destPath);
+      moved.push(...sub.moved);
+      conflicts.push(...sub.conflicts);
+      // Remove src subdir if now empty
+      try {
+        const remaining = fs.readdirSync(srcPath);
+        if (remaining.length === 0) {
+          fs.rmdirSync(srcPath);
+        }
+      } catch {
+        // ignore cleanup errors
+      }
+    } else if (!destExists) {
+      // Only in src — move it
+      try {
+        fs.renameSync(srcPath, destPath);
+        moved.push(entry.name);
+      } catch {
+        conflicts.push(entry.name);
+      }
+    } else {
+      // Exists in both — dest wins, remove src entry
+      try {
+        fs.rmSync(srcPath, { recursive: true, force: true });
+      } catch {
+        // ignore removal errors
+      }
+      conflicts.push(entry.name);
+    }
+  }
+  return { moved, conflicts };
+}
+
 function isLegacyTreeSymlinkMirror(currentDir: string, realTargetDir: string): boolean {
   let entries: fs.Dirent[];
   try {
@@ -509,9 +564,19 @@ export async function autoMigrateLegacyStateDir(params: {
     if (legacyDir && isLegacyDirSymlinkMirror(legacyDir, targetDir)) {
       return { migrated: false, skipped: false, changes, warnings };
     }
-    warnings.push(
-      `State dir migration skipped: target already exists (${targetDir}). Remove or merge manually.`,
-    );
+    // Both target and legacy exist as real directories — merge and symlink
+    if (legacyDir) {
+      try {
+        mergeDirInto(legacyDir, targetDir);
+        fs.rmSync(legacyDir, { recursive: true, force: true });
+        fs.symlinkSync(targetDir, legacyDir, process.platform === "win32" ? "junction" : "dir");
+        changes.push(formatStateDirMigration(legacyDir, targetDir));
+        return { migrated: true, skipped: false, changes, warnings };
+      } catch (err) {
+        warnings.push(`State dir merge failed (${legacyDir} → ${targetDir}): ${String(err)}`);
+        return { migrated: false, skipped: false, changes, warnings };
+      }
+    }
     return { migrated: false, skipped: false, changes, warnings };
   }
 
