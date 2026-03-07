@@ -88,6 +88,22 @@ setup_environment() {
     NODE_BIN_PATH=$(run_cmd "which node")
     export NODE_BIN_PATH
 
+    # Configure npm to use user-local prefix (avoids EACCES on global installs)
+    log_info "Configuring npm user-local prefix..."
+    local exec_user="${AGENT_USERNAME:-$(whoami)}"
+    if [ "${EXEC_MODE:-local}" = "remote" ]; then
+        run_cmd --as "$exec_user" "npm config set prefix '~/.local'"
+        # Ensure ~/.local/bin is in PATH via .bashrc
+        run_cmd --as "$exec_user" "grep -q 'HOME/.local/bin' ~/.bashrc 2>/dev/null || echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+    else
+        npm config set prefix "$HOME/.local"
+        if ! grep -q 'HOME/.local/bin' ~/.bashrc 2>/dev/null; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+        fi
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+    log_success "npm prefix set to ~/.local"
+
     # --- Package manager & build tools (install-method-dependent) ---
     local install_method="${INSTALL_METHOD:-package}"
 

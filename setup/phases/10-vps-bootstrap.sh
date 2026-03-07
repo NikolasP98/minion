@@ -4,8 +4,8 @@
 # phase: 10
 # description: >
 #   Bootstraps a fresh VPS from root-only access to a fully provisioned base server.
-#   Creates admin user with SSH key auth, hardens SSH, installs Tailscale, and
-#   creates the minion service user with scaffolded directories. All steps are
+#   Creates admin user with SSH key auth, hardens SSH, and installs Tailscale.
+#   Service user creation is handled by Phase 20 (user-creation). All steps are
 #   idempotent. Runs as root via SSH on the target VPS.
 # when: >
 #   Run on a brand-new VPS before any Minion deployment phases (20-70).
@@ -17,7 +17,6 @@
 #   - "Admin user (ADMIN_USER) with sudo NOPASSWD and SSH key auth"
 #   - "Hardened SSH config (no password auth, no root password login)"
 #   - "Tailscale installed and ready for auth"
-#   - "Minion service user (AGENT_USERNAME) with scaffolded ~/.minion/"
 #   - "Base packages installed (curl, git, build-essential, ufw, fail2ban, etc.)"
 # idempotent: true
 # estimated_time: "3-5 minutes"
@@ -62,26 +61,41 @@ get_ssh_pubkey() {
             echo "$key"
             return 0
         else
-            log_error "Failed to read SSH key from 1Password (ref: $op_ref)"
-            log_error "Make sure you're signed in: op signin"
-            return 1
+            log_warn "Failed to read SSH key from 1Password (not signed in?). Trying local SSH keys..."
         fi
     fi
 
-    log_error "No SSH public key available. Provide via --ssh-pubkey, --ssh-pubkey-file, or install 1Password CLI (op)"
+    # 4. Auto-detect local SSH public key
+    local ssh_key_candidates=(
+        "$HOME/.ssh/id_ed25519.pub"
+        "$HOME/.ssh/id_rsa.pub"
+        "$HOME/.ssh/id_ecdsa.pub"
+    )
+    for candidate in "${ssh_key_candidates[@]}"; do
+        if [ -f "$candidate" ]; then
+            log_info "Using local SSH key: $candidate"
+            cat "$candidate"
+            return 0
+        fi
+    done
+
+    log_error "No SSH public key available. Provide via:"
+    log_error "  --ssh-pubkey-file=~/.ssh/id_ed25519.pub"
+    log_error "  --ssh-pubkey='ssh-ed25519 AAAA...'"
+    log_error "  or install and sign into 1Password CLI (op)"
     return 1
 }
 
 # --- Sub-step functions ---
 
 step_system_update() {
-    log_info "Step 1/7: System update..."
+    log_info "Step 1/6: System update..."
     run_cmd --as root "DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get full-upgrade -y -qq"
     log_success "System updated"
 }
 
 step_base_packages() {
-    log_info "Step 2/7: Installing base packages..."
+    log_info "Step 2/6: Installing base packages..."
     local packages="curl git build-essential ufw fail2ban unattended-upgrades jq htop tmux rsync"
     run_cmd --as root "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $packages"
     log_success "Base packages installed"
@@ -89,7 +103,7 @@ step_base_packages() {
 
 step_admin_user() {
     local admin="${ADMIN_USER:-niko}"
-    log_info "Step 3/7: Creating admin user: $admin..."
+    log_info "Step 3/6: Creating admin user: $admin..."
 
     # Create user if doesn't exist (idempotent)
     if run_cmd --as root "id $admin" &> /dev/null; then
@@ -109,7 +123,7 @@ step_admin_user() {
 
 step_ssh_key() {
     local admin="${ADMIN_USER:-niko}"
-    log_info "Step 4/7: Setting up SSH key for $admin..."
+    log_info "Step 4/6: Setting up SSH key for $admin..."
 
     # Fetch key LOCALLY
     local pubkey
@@ -127,7 +141,7 @@ step_ssh_key() {
 
 step_ssh_hardening() {
     local admin="${ADMIN_USER:-niko}"
-    log_info "Step 5/7: Hardening SSH..."
+    log_info "Step 5/6: Hardening SSH..."
 
     # Safety gate: verify SSH key login works for admin BEFORE disabling password auth
     log_info "Verifying SSH key login for $admin before hardening..."
@@ -154,7 +168,7 @@ SSHEOF"
 }
 
 step_tailscale() {
-    log_info "Step 6/7: Installing Tailscale..."
+    log_info "Step 6/6: Installing Tailscale..."
 
     # Install if not present
     if run_cmd --as root "command -v tailscale" &> /dev/null; then
@@ -181,29 +195,6 @@ step_tailscale() {
     log_success "Tailscale configured with SSH enabled"
 }
 
-step_service_user() {
-    local svc_user="${AGENT_USERNAME:-bot-prd}"
-    log_info "Step 7/7: Creating minion service user: $svc_user..."
-
-    # Create user if doesn't exist
-    if run_cmd --as root "id $svc_user" &> /dev/null; then
-        log_warn "User $svc_user already exists, skipping creation"
-    else
-        run_cmd --as root "adduser --disabled-password --gecos '' $svc_user"
-        log_success "User $svc_user created"
-    fi
-
-    # Scaffold .minion directory structure
-    run_cmd --as root "mkdir -p /home/$svc_user/.minion/{workspace,credentials,agents}"
-    run_cmd --as root "chmod 700 /home/$svc_user/.minion"
-    run_cmd --as root "chown -R $svc_user:$svc_user /home/$svc_user/.minion"
-
-    # Enable systemd linger for user-level services
-    run_cmd --as root "loginctl enable-linger $svc_user" || true
-
-    log_success "Service user $svc_user scaffolded with .minion/ structure"
-}
-
 # --- Main ---
 
 vps_bootstrap() {
@@ -215,7 +206,6 @@ vps_bootstrap() {
     step_ssh_key
     step_ssh_hardening
     step_tailscale
-    step_service_user
 
     phase_end "VPS Bootstrap" "success"
     save_checkpoint "10-vps-bootstrap"

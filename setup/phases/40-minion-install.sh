@@ -209,6 +209,17 @@ install_minion() {
         install_via_package
     fi
 
+    # Persist resolved paths for downstream phases (supports --start-from resume)
+    local state_file="${LOG_DIR:-/tmp/minion-setup}/resolved-paths.sh"
+    log_info "Saving resolved paths to $state_file..."
+    cat > "$state_file" << EOF
+MINION_BIN="${MINION_BIN:-}"
+MINION_PKG_ROOT="${MINION_PKG_ROOT:-}"
+NODE_BIN_PATH="${NODE_BIN_PATH:-}"
+MINION_ROOT="${MINION_ROOT:-}"
+EOF
+    log_success "Resolved paths saved"
+
     phase_end "Minion Install" "success"
     save_checkpoint "40-minion-install"
     return 0

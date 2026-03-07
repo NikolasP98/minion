@@ -156,6 +156,15 @@ derive_system_variables() {
         AGENT_HOME_DIR="${AGENT_HOME_DIR:-/home/${AGENT_USERNAME}}"
     fi
 
+    # Source resolved paths from Phase 40 if available (supports --start-from resume)
+    local state_file="${LOG_DIR:-/tmp/minion-setup}/resolved-paths.sh"
+    if [ -f "$state_file" ]; then
+        # Only source values that aren't already set
+        local _saved_bin _saved_root _saved_pkg_root _saved_node
+        # shellcheck disable=SC1090
+        source "$state_file"
+    fi
+
     if [ "$INSTALL_METHOD" = "source" ]; then
         MINION_ROOT="${MINION_ROOT:-${AGENT_HOME_DIR}/minion}"
         MINION_WRAPPER="${MINION_WRAPPER:-${AGENT_HOME_DIR}/.local/bin/minion}"

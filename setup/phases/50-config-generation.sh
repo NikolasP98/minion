@@ -267,6 +267,15 @@ generate_configuration() {
         fi
     fi
 
+    # --- Create .env file with proper ownership (prevents EACCES at gateway startup) ---
+    local env_file="${config_dir}/.env"
+    if [ "${EXEC_MODE:-local}" = "remote" ]; then
+        run_cmd --as root "touch '${env_file}' && chown ${exec_user}:${exec_user} '${env_file}' && chmod 600 '${env_file}'"
+    else
+        touch "${env_file}" && chmod 600 "${env_file}"
+    fi
+    log_success ".env file ready at ${env_file}"
+
     # --- Generate GOG CLI file-keyring credentials (headless file keyring) ---
     setup_gog_keyring_credentials "$config_dir"
 

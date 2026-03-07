@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory={{MINION_PKG_ROOT}}
+WorkingDirectory={{AGENT_HOME_DIR}}
 ExecStart={{MINION_BIN}} gateway
 Restart=always
 RestartSec=10
@@ -15,6 +15,7 @@ StandardError=journal
 # Environment
 Environment=NODE_ENV=production
 Environment=HOME={{AGENT_HOME_DIR}}
+Environment=PATH={{AGENT_HOME_DIR}}/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 # Security hardening
