@@ -28,6 +28,12 @@ import {
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
 import { loadMinionPlugins } from "../../plugins/loader.js";
 import {
+  buildGatewayReloadPlan,
+  diffConfigPaths,
+  resolveGatewayReloadSettings,
+  suppressNextConfigReload,
+} from "../config-reload.js";
+import {
   ErrorCodes,
   errorShape,
   validateConfigApplyParams,
@@ -237,6 +243,43 @@ function loadSchemaWithPlugins(): ConfigSchemaResponse {
   });
 }
 
+async function resolveConfigReload(opts: {
+  prevConfig: OpenClawConfig | undefined;
+  nextConfig: OpenClawConfig;
+  restartDelayMs: number | undefined;
+  reason: string;
+  applyHotReload?: (
+    plan: import("../config-reload.js").GatewayReloadPlan,
+    config: Record<string, unknown>,
+  ) => Promise<void>;
+}): Promise<{ reloadMode: "hot" | "restart" | "noop"; restart?: unknown }> {
+  const changedPaths = diffConfigPaths(opts.prevConfig ?? {}, opts.nextConfig);
+  const plan = buildGatewayReloadPlan(changedPaths);
+  const reloadSettings = resolveGatewayReloadSettings(opts.nextConfig);
+
+  if (changedPaths.length === 0) {
+    suppressNextConfigReload();
+    return { reloadMode: "noop" };
+  }
+
+  const canHotReload =
+    !plan.restartGateway && reloadSettings.mode !== "off" && reloadSettings.mode !== "restart";
+
+  if (canHotReload && opts.applyHotReload) {
+    suppressNextConfigReload();
+    await opts.applyHotReload(plan, opts.nextConfig);
+    return { reloadMode: "hot" };
+  }
+
+  // Fall back to full gateway restart
+  suppressNextConfigReload();
+  const restart = scheduleGatewaySigusr1Restart({
+    delayMs: opts.restartDelayMs,
+    reason: opts.reason,
+  });
+  return { reloadMode: "restart", restart };
+}
+
 export const configHandlers: GatewayRequestHandlers = {
   "config.get": async ({ params, respond }) => {
     if (!assertValidParams(params, validateConfigGetParams, "config.get", respond)) {
@@ -275,7 +318,7 @@ export const configHandlers: GatewayRequestHandlers = {
       undefined,
     );
   },
-  "config.patch": async ({ params, respond }) => {
+  "config.patch": async ({ params, respond, context }) => {
     if (!assertValidParams(params, validateConfigPatchParams, "config.patch", respond)) {
       return;
     }
@@ -353,35 +396,43 @@ export const configHandlers: GatewayRequestHandlers = {
 
     const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
       resolveConfigRestartRequest(params);
-    const payload = buildConfigRestartSentinelPayload({
-      kind: "config-patch",
-      mode: "config.patch",
-      sessionKey,
-      deliveryContext,
-      threadId,
-      note,
-    });
-    const sentinelPath = await tryWriteRestartSentinelPayload(payload);
-    const restart = scheduleGatewaySigusr1Restart({
-      delayMs: restartDelayMs,
+
+    const { reloadMode, restart } = await resolveConfigReload({
+      prevConfig: snapshot.config,
+      nextConfig: validated.config,
+      restartDelayMs,
       reason: "config.patch",
+      applyHotReload: context.applyHotReload,
     });
+
+    let sentinelPath: string | null = null;
+    let payload: ReturnType<typeof buildConfigRestartSentinelPayload> | undefined;
+    if (reloadMode === "restart") {
+      payload = buildConfigRestartSentinelPayload({
+        kind: "config-patch",
+        mode: "config.patch",
+        sessionKey,
+        deliveryContext,
+        threadId,
+        note,
+      });
+      sentinelPath = await tryWriteRestartSentinelPayload(payload);
+    }
+
     respond(
       true,
       {
         ok: true,
         path: CONFIG_PATH,
         config: redactConfigObject(validated.config, schemaPatch.uiHints),
-        restart,
-        sentinel: {
-          path: sentinelPath,
-          payload,
-        },
+        reloadMode,
+        restart: restart ?? null,
+        sentinel: payload ? { path: sentinelPath, payload } : null,
       },
       undefined,
     );
   },
-  "config.apply": async ({ params, respond }) => {
+  "config.apply": async ({ params, respond, context }) => {
     if (!assertValidParams(params, validateConfigApplyParams, "config.apply", respond)) {
       return;
     }
@@ -397,30 +448,38 @@ export const configHandlers: GatewayRequestHandlers = {
 
     const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
       resolveConfigRestartRequest(params);
-    const payload = buildConfigRestartSentinelPayload({
-      kind: "config-apply",
-      mode: "config.apply",
-      sessionKey,
-      deliveryContext,
-      threadId,
-      note,
-    });
-    const sentinelPath = await tryWriteRestartSentinelPayload(payload);
-    const restart = scheduleGatewaySigusr1Restart({
-      delayMs: restartDelayMs,
+
+    const { reloadMode, restart } = await resolveConfigReload({
+      prevConfig: snapshot.config,
+      nextConfig: parsed.config,
+      restartDelayMs,
       reason: "config.apply",
+      applyHotReload: context.applyHotReload,
     });
+
+    let sentinelPath: string | null = null;
+    let payload: ReturnType<typeof buildConfigRestartSentinelPayload> | undefined;
+    if (reloadMode === "restart") {
+      payload = buildConfigRestartSentinelPayload({
+        kind: "config-apply",
+        mode: "config.apply",
+        sessionKey,
+        deliveryContext,
+        threadId,
+        note,
+      });
+      sentinelPath = await tryWriteRestartSentinelPayload(payload);
+    }
+
     respond(
       true,
       {
         ok: true,
         path: CONFIG_PATH,
         config: redactConfigObject(parsed.config, parsed.schema.uiHints),
-        restart,
-        sentinel: {
-          path: sentinelPath,
-          payload,
-        },
+        reloadMode,
+        restart: restart ?? null,
+        sentinel: payload ? { path: sentinelPath, payload } : null,
       },
       undefined,
     );

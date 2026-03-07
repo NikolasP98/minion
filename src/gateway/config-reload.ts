@@ -242,6 +242,17 @@ export function buildGatewayReloadPlan(changedPaths: string[]): GatewayReloadPla
   return plan;
 }
 
+/**
+ * Suppression counter for the file-watcher reload loop.
+ * When config.patch/config.apply handles reload inline, it increments this
+ * so the file-watcher doesn't double-fire on the same write.
+ */
+let suppressCount = 0;
+
+export function suppressNextConfigReload(): void {
+  suppressCount++;
+}
+
 export type GatewayConfigReloader = {
   stop: () => Promise<void>;
 };
@@ -304,6 +315,16 @@ export function startGatewayConfigReloader(opts: {
       currentConfig = nextConfig;
       settings = resolveGatewayReloadSettings(nextConfig);
       if (changedPaths.length === 0) {
+        return;
+      }
+
+      // If a config.patch/config.apply already handled this reload inline,
+      // skip the file-watcher action but keep currentConfig in sync (done above).
+      if (suppressCount > 0) {
+        suppressCount--;
+        opts.log.info(
+          `config change detected but suppressed (handled inline by config.patch/apply)`,
+        );
         return;
       }
 

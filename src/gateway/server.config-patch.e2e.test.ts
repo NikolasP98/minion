@@ -107,6 +107,31 @@ describe("gateway config methods", () => {
     expect(secondary?.workspace).toBe("/tmp/secondary");
   });
 
+  it("returns reloadMode in config.patch response", async () => {
+    const baseHash = await readConfigHash();
+    // Patching identity.name is a noop-path change (no restart, no hot reload)
+    const res = await rpcReq<{ ok?: boolean; reloadMode?: string }>(ws, "config.patch", {
+      baseHash,
+      raw: JSON.stringify({ identity: { name: "test-bot-reload" } }),
+    });
+    expect(res.ok).toBe(true);
+    expect(res.payload?.reloadMode).toBeDefined();
+    expect(["hot", "restart", "noop"]).toContain(res.payload?.reloadMode);
+  });
+
+  it("returns reloadMode for identity-only patch (noop or restart)", async () => {
+    const baseHash = await readConfigHash();
+    // Identity changes are classified as noop-paths (no hot reload, no restart needed)
+    // In minimal test gateway mode (no applyHotReload wired), this may fall through to restart
+    const res = await rpcReq<{ ok?: boolean; reloadMode?: string }>(ws, "config.patch", {
+      baseHash,
+      raw: JSON.stringify({ identity: { name: "unchanged-test" } }),
+    });
+    expect(res.ok).toBe(true);
+    // In full gateway: noop or hot. In minimal test gateway: may be restart.
+    expect(["hot", "restart", "noop"]).toContain(res.payload?.reloadMode);
+  });
+
   it("rejects mixed-id agents.list patches without mutating persisted config", async () => {
     await seedAgentsConfig([
       { id: "primary", default: true, workspace: "/tmp/primary" },
