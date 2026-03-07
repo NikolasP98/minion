@@ -39,9 +39,14 @@ export async function startGatewayTailscaleExposure(params: {
       params.logTailscale.info(`${params.tailscaleMode} enabled`);
     }
   } catch (err) {
-    params.logTailscale.warn(
-      `${params.tailscaleMode} failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Access denied") || msg.includes("serve config denied")) {
+      params.logTailscale.warn(
+        `${params.tailscaleMode} requires operator permissions. Run: sudo tailscale set --operator=$USER`,
+      );
+    } else {
+      params.logTailscale.warn(`${params.tailscaleMode} failed: ${msg}`);
+    }
   }
 
   if (!params.resetOnExit) {

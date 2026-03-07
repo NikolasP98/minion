@@ -64,24 +64,19 @@ create_agent_user() {
             fi
         fi
 
-        # Copy deployer's SSH key to agent user for SSH access
-        log_info "Setting up SSH key access for $AGENT_USERNAME..."
+        # Copy deployer's SSH key + create directories + set permissions in one SSH call
+        log_info "Setting up SSH key access and directory structure for $AGENT_USERNAME..."
         local admin="${ADMIN_USER:-niko}"
-        run_cmd --as root "mkdir -p ${AGENT_HOME_DIR}/.ssh && chmod 700 ${AGENT_HOME_DIR}/.ssh"
-        run_cmd --as root "cp /home/${admin}/.ssh/authorized_keys ${AGENT_HOME_DIR}/.ssh/authorized_keys 2>/dev/null || cp /root/.ssh/authorized_keys ${AGENT_HOME_DIR}/.ssh/authorized_keys 2>/dev/null || true"
-        run_cmd --as root "chown -R ${AGENT_USERNAME}:${AGENT_USERNAME} ${AGENT_HOME_DIR}/.ssh && chmod 600 ${AGENT_HOME_DIR}/.ssh/authorized_keys 2>/dev/null || true"
-        log_success "SSH key access configured for $AGENT_USERNAME"
-
-        log_info "Setting up directory structure..."
-        run_cmd --as root "mkdir -p ${AGENT_HOME_DIR}/.minion/workspace"
-        run_cmd --as root "mkdir -p ${AGENT_HOME_DIR}/.minion/credentials"
-        run_cmd --as root "mkdir -p ${AGENT_HOME_DIR}/.local/bin"
-        run_cmd --as root "mkdir -p ${AGENT_HOME_DIR}/.config/systemd/user"
-
-        log_info "Setting proper permissions..."
-        run_cmd --as root "chown -R ${AGENT_USERNAME}:${AGENT_USERNAME} ${AGENT_HOME_DIR}"
-        run_cmd --as root "chmod 700 ${AGENT_HOME_DIR}/.minion"
-        run_cmd --as root "chmod 700 ${AGENT_HOME_DIR}/.minion/credentials"
+        run_cmd --as root "
+            mkdir -p ${AGENT_HOME_DIR}/.ssh && chmod 700 ${AGENT_HOME_DIR}/.ssh &&
+            (cp /home/${admin}/.ssh/authorized_keys ${AGENT_HOME_DIR}/.ssh/authorized_keys 2>/dev/null ||
+             cp /root/.ssh/authorized_keys ${AGENT_HOME_DIR}/.ssh/authorized_keys 2>/dev/null || true) &&
+            chmod 600 ${AGENT_HOME_DIR}/.ssh/authorized_keys 2>/dev/null || true
+            mkdir -p ${AGENT_HOME_DIR}/.minion/workspace ${AGENT_HOME_DIR}/.minion/credentials ${AGENT_HOME_DIR}/.local/bin ${AGENT_HOME_DIR}/.config/systemd/user &&
+            chown -R ${AGENT_USERNAME}:${AGENT_USERNAME} ${AGENT_HOME_DIR} &&
+            chmod 700 ${AGENT_HOME_DIR}/.minion ${AGENT_HOME_DIR}/.minion/credentials
+        "
+        log_success "SSH key access and directory structure configured for $AGENT_USERNAME"
 
         log_info "Configuring systemd user lingering..."
         if ! run_cmd --as root "loginctl enable-linger $AGENT_USERNAME"; then

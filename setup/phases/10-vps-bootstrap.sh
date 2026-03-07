@@ -106,19 +106,12 @@ step_admin_user() {
     local admin="${ADMIN_USER:-niko}"
     log_info "Step 3/6: Creating admin user: $admin..."
 
-    # Create user if doesn't exist (idempotent)
-    if run_cmd --as root "id $admin" &> /dev/null; then
-        log_warn "User $admin already exists, skipping creation"
-    else
-        run_cmd --as root "adduser --disabled-password --gecos '' $admin"
-        log_success "User $admin created"
-    fi
-
-    # Add to sudo group
-    run_cmd --as root "usermod -aG sudo $admin"
-
-    # NOPASSWD sudoers entry (idempotent via tee + check)
-    run_cmd --as root "echo '$admin ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/$admin && chmod 0440 /etc/sudoers.d/$admin"
+    # Create user + sudo + sudoers in one SSH call (idempotent)
+    run_cmd --as root "
+        id $admin &>/dev/null || adduser --disabled-password --gecos '' $admin
+        usermod -aG sudo $admin
+        echo '$admin ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/$admin && chmod 0440 /etc/sudoers.d/$admin
+    "
     log_success "Admin user $admin configured with NOPASSWD sudo"
 }
 
@@ -130,12 +123,12 @@ step_ssh_key() {
     local pubkey
     pubkey=$(get_ssh_pubkey) || return 1
 
-    # Create .ssh dir and inject key (sort -u for idempotency)
-    run_cmd --as root "mkdir -p /home/$admin/.ssh && chmod 700 /home/$admin/.ssh"
-
-    # Add key if not already present
-    run_cmd --as root "grep -qF '${pubkey}' /home/$admin/.ssh/authorized_keys 2>/dev/null || echo '${pubkey}' >> /home/$admin/.ssh/authorized_keys"
-    run_cmd --as root "chmod 600 /home/$admin/.ssh/authorized_keys && chown -R $admin:$admin /home/$admin/.ssh"
+    # Create .ssh dir, inject key, set permissions in one SSH call
+    run_cmd --as root "
+        mkdir -p /home/$admin/.ssh && chmod 700 /home/$admin/.ssh &&
+        (grep -qF '${pubkey}' /home/$admin/.ssh/authorized_keys 2>/dev/null || echo '${pubkey}' >> /home/$admin/.ssh/authorized_keys) &&
+        chmod 600 /home/$admin/.ssh/authorized_keys && chown -R $admin:$admin /home/$admin/.ssh
+    "
 
     log_success "SSH key installed for $admin"
 }
@@ -171,19 +164,20 @@ SSHEOF"
 step_tailscale() {
     log_info "Step 6/6: Installing Tailscale..."
 
-    # Install if not present
-    if run_cmd --as root "command -v tailscale" &> /dev/null; then
-        log_warn "Tailscale already installed, skipping install"
-    else
+    # Install if not present + check auth status in one call
+    local ts_status
+    ts_status=$(run_cmd --as root "command -v tailscale &>/dev/null && echo 'installed' || echo 'missing'; tailscale status &>/dev/null && echo 'authed' || echo 'unauthed'" 2>/dev/null) || true
+
+    if echo "$ts_status" | grep -q "missing"; then
         run_cmd --as root "curl -fsSL https://tailscale.com/install.sh | sh"
         log_success "Tailscale installed"
+    else
+        log_warn "Tailscale already installed, skipping install"
     fi
 
-    # Check if already authenticated
-    if run_cmd --as root "tailscale status" &> /dev/null; then
+    if echo "$ts_status" | grep -q "authed"; then
         log_warn "Tailscale already authenticated"
     else
-        # Start tailscale up with SSH — prints auth URL for interactive login
         log_info "Starting Tailscale authentication (interactive)..."
         log_warn ">>> Follow the auth URL printed below to authenticate this server <<<"
         echo ""

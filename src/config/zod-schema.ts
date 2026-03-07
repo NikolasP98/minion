@@ -685,6 +685,17 @@ export const MinionSchema = z
   })
   .strict()
   .superRefine((cfg, ctx) => {
+    // Validate tailscale.mode requires bind=loopback or auto
+    const tsMode = cfg.gateway?.tailscale?.mode;
+    const bind = cfg.gateway?.bind;
+    if (tsMode && tsMode !== "off" && bind && bind !== "loopback" && bind !== "auto") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `tailscale.mode="${tsMode}" requires bind="loopback" (got "${bind}")`,
+        path: ["gateway", "tailscale", "mode"],
+      });
+    }
+
     const agents = cfg.agents?.list ?? [];
     if (agents.length === 0) {
       return;

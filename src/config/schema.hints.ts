@@ -81,7 +81,7 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   "gateway.remote.sshTarget": "user@host",
   "gateway.controlUi.basePath": "/minion",
   "gateway.controlUi.root": "dist/control-ui",
-  "gateway.controlUi.allowedOrigins": "https://control.example.com",
+  "gateway.controlUi.allowedOrigins": "https://app.example.com, http://localhost:*",
   "channels.mattermost.baseUrl": "https://chat.example.com",
   "agents.list[].identity.avatar": "avatars/minion.png",
 };

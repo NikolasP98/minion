@@ -93,8 +93,16 @@ generate_configuration() {
     COMMUNICATION_STYLE="${COMMUNICATION_STYLE:-Professional, concise, and helpful}"
     DOMAIN_KNOWLEDGE="${DOMAIN_KNOWLEDGE:-General purpose knowledge and skills}"
 
+    # Auto-set bind=loopback when tailscale serve/funnel is configured
+    if [ "${TAILSCALE_MODE:-off}" = "serve" ] || [ "${TAILSCALE_MODE:-off}" = "funnel" ]; then
+        if [ "${GATEWAY_BIND:-}" != "loopback" ] && [ "${GATEWAY_BIND:-}" != "auto" ]; then
+            log_info "Tailscale ${TAILSCALE_MODE} requires bind=loopback; overriding GATEWAY_BIND=${GATEWAY_BIND:-unset}"
+            GATEWAY_BIND="loopback"
+        fi
+    fi
+
     # Export all for template rendering
-    export DEPLOYMENT_DATE DEPLOYMENT_ENVIRONMENT MINION_VERSION
+    export DEPLOYMENT_DATE DEPLOYMENT_ENVIRONMENT MINION_VERSION GATEWAY_BIND
     export AGENT_PERSONALITY AGENT_RESPONSIBILITIES COMMUNICATION_STYLE DOMAIN_KNOWLEDGE
 
     # --- Render minion.json ---

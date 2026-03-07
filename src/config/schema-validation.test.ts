@@ -65,6 +65,37 @@ describe("validateConfigAtStartup", () => {
     expect(result.valid).toBe(false);
   });
 
+  it("rejects tailscale.mode=serve when bind is not loopback", () => {
+    const result = validateConfigAtStartup({
+      gateway: {
+        bind: "lan",
+        tailscale: { mode: "serve" },
+      },
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes('tailscale.mode="serve"'))).toBe(true);
+  });
+
+  it("accepts tailscale.mode=serve with bind=loopback", () => {
+    const result = validateConfigAtStartup({
+      gateway: {
+        bind: "loopback",
+        tailscale: { mode: "serve" },
+      },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts tailscale.mode=serve with bind=auto", () => {
+    const result = validateConfigAtStartup({
+      gateway: {
+        bind: "auto",
+        tailscale: { mode: "serve" },
+      },
+    });
+    expect(result.valid).toBe(true);
+  });
+
   it("validates logging level options", () => {
     const valid = validateConfigAtStartup({
       logging: { level: "debug" },
