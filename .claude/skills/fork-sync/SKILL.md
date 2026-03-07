@@ -435,14 +435,14 @@ git commit -m "feat(fork-sync): Phase 1.7 — generate conflict resolution scrip
 ls .claude/skills/fork-sync/scripts/resolve-conflicts.sh
 
 # Step 2: Create isolated worktree pointing at DEV
-git worktree add ../openclaw-merge-worktree DEV
+git worktree add ../minion-merge-worktree DEV
 
 # Step 3: Merge mirror into worktree (--no-commit to allow pre-commit resolution)
-git -C ../openclaw-merge-worktree merge mirror --no-commit --no-ff
+git -C ../minion-merge-worktree merge mirror --no-commit --no-ff
 
 # Step 4: Run resolution script from within the worktree directory
 # (script uses relative git commands, must run from worktree root)
-cd ../openclaw-merge-worktree
+cd ../minion-merge-worktree
 bash .claude/skills/fork-sync/scripts/resolve-conflicts.sh
 
 # Step 5: Manually resolve manualMerge files listed by the script
@@ -450,20 +450,20 @@ bash .claude/skills/fork-sync/scripts/resolve-conflicts.sh
 # Common files: package.json, .github/workflows/ci.yml, .github/workflows/docker-release.yml
 
 # After resolving each file:
-git -C ../openclaw-merge-worktree add package.json .github/workflows/ci.yml .github/workflows/docker-release.yml
+git -C ../minion-merge-worktree add package.json .github/workflows/ci.yml .github/workflows/docker-release.yml
 
 # Step 6: Commit the merge
-git -C ../openclaw-merge-worktree commit -m "Merge upstream changes from mirror"
+git -C ../minion-merge-worktree commit -m "Merge upstream changes from mirror"
 
 # Step 7: Push DEV
-git -C ../openclaw-merge-worktree push origin DEV
+git -C ../minion-merge-worktree push origin DEV
 
 # Step 7.5: Update sync-history.json
 # Record this sync in the persistent history
 SYNC_HISTORY=".claude/skills/fork-sync/state/sync-history.json"
 MIRROR_HEAD=$(git rev-parse mirror)
-DEV_HEAD=$(git -C ../openclaw-merge-worktree rev-parse HEAD)
-MERGE_COMMIT=$(git -C ../openclaw-merge-worktree rev-parse HEAD)
+DEV_HEAD=$(git -C ../minion-merge-worktree rev-parse HEAD)
+MERGE_COMMIT=$(git -C ../minion-merge-worktree rev-parse HEAD)
 DELTA_COUNT=$(git rev-list --count "$LAST_SYNCED".."$MIRROR_HEAD" 2>/dev/null || echo "unknown")
 SYNC_ID="sync-$(printf '%03d' $(($(jq '.syncs | length' "$SYNC_HISTORY") + 1)))"
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -491,19 +491,19 @@ jq --arg id "$SYNC_ID" \
    .lastSyncedAt = $now' "$SYNC_HISTORY" > "${SYNC_HISTORY}.tmp" && mv "${SYNC_HISTORY}.tmp" "$SYNC_HISTORY"
 
 # Step 8: Cleanup
-git worktree remove ../openclaw-merge-worktree
+git worktree remove ../minion-merge-worktree
 ```
 
-**Why worktrees prevent interruption**: The main workspace can be on any branch. Commits, checkouts, and stash pops in the main workspace have zero effect on the worktree. The active merge state lives in `../openclaw-merge-worktree/.git/MERGE_HEAD` — a completely separate directory.
+**Why worktrees prevent interruption**: The main workspace can be on any branch. Commits, checkouts, and stash pops in the main workspace have zero effect on the worktree. The active merge state lives in `../minion-merge-worktree/.git/MERGE_HEAD` — a completely separate directory.
 
 **Recovery if interrupted** (session ends, error, parallel git activity):
 
 ```bash
 # Full reset in ~30 seconds
-git worktree remove --force ../openclaw-merge-worktree
-git worktree add ../openclaw-merge-worktree DEV
-git -C ../openclaw-merge-worktree merge mirror --no-commit --no-ff
-cd ../openclaw-merge-worktree
+git worktree remove --force ../minion-merge-worktree
+git worktree add ../minion-merge-worktree DEV
+git -C ../minion-merge-worktree merge mirror --no-commit --no-ff
+cd ../minion-merge-worktree
 bash .claude/skills/fork-sync/scripts/resolve-conflicts.sh
 # ... then Step 5 (manualMerge), Step 6 (commit), Step 7 (push), Step 8 (cleanup)
 ```
