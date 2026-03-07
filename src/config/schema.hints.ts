@@ -127,7 +127,7 @@ export function buildBaseHints(): ConfigUiHints {
   for (const [group, label] of Object.entries(GROUP_LABELS)) {
     hints[group] = {
       label,
-      group: label,
+      group,
       order: GROUP_ORDER[group],
     };
   }

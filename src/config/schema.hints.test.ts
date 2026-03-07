@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { __test__, isSensitiveConfigPath } from "./schema.hints.js";
+import { __test__, buildBaseHints, isSensitiveConfigPath } from "./schema.hints.js";
 import { OpenClawSchema } from "./zod-schema.js";
 import { sensitive } from "./zod-schema.sensitive.js";
 
@@ -30,6 +30,19 @@ describe("isSensitiveConfigPath", () => {
     expect(isSensitiveConfigPath("channels.slack.token")).toBe(true);
     expect(isSensitiveConfigPath("models.providers.openai.apiKey")).toBe(true);
     expect(isSensitiveConfigPath("channels.irc.nickserv.password")).toBe(true);
+  });
+});
+
+describe("buildBaseHints", () => {
+  it("returns group IDs matching keys, not labels", () => {
+    const hints = buildBaseHints();
+    // Group-level hints should have group === key (lowercase), not the label
+    expect(hints.gateway?.group).toBe("gateway");
+    expect(hints.agents?.group).toBe("agents");
+    expect(hints.models?.group).toBe("models");
+    // Ensure group !== label (label is capitalized)
+    expect(hints.agents?.group).not.toBe("Agents");
+    expect(hints.gateway?.group).not.toBe("Gateway");
   });
 });
 
