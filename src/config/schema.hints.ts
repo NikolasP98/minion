@@ -131,6 +131,8 @@ export function buildBaseHints(): ConfigUiHints {
       order: GROUP_ORDER[group],
     };
   }
+  log.debug(`registered ${Object.keys(GROUP_LABELS).length} groups`);
+
   for (const [path, label] of Object.entries(FIELD_LABELS)) {
     const current = hints[path];
     hints[path] = current ? { ...current, label } : { label };
@@ -143,6 +145,8 @@ export function buildBaseHints(): ConfigUiHints {
     const current = hints[path];
     hints[path] = current ? { ...current, placeholder } : { placeholder };
   }
+
+  log.debug(`built ${Object.keys(hints).length} base hints`);
   return hints;
 }
 
@@ -151,6 +155,7 @@ export function applySensitiveHints(
   allowedKeys?: ReadonlySet<string>,
 ): ConfigUiHints {
   const next = { ...hints };
+  let marked = 0;
   for (const key of Object.keys(next)) {
     if (allowedKeys && !allowedKeys.has(key)) {
       continue;
@@ -160,7 +165,11 @@ export function applySensitiveHints(
     }
     if (isSensitiveConfigPath(key)) {
       next[key] = { ...next[key], sensitive: true };
+      marked++;
     }
+  }
+  if (marked > 0) {
+    log.debug(`auto-marked ${marked} keys as sensitive`);
   }
   return next;
 }

@@ -35,6 +35,8 @@ derive_system_variables
 create_agent_user() {
     phase_start "User Creation" "20"
 
+    log_debug "EXEC_MODE=${EXEC_MODE:-local}, AGENT_USERNAME=$AGENT_USERNAME, AGENT_HOME_DIR=$AGENT_HOME_DIR"
+
     if [ "${EXEC_MODE:-local}" = "remote" ]; then
         # Remote mode: create user via SSH as root
         log_info "Creating agent user: $AGENT_USERNAME on $VPS_HOSTNAME..."
@@ -51,6 +53,7 @@ create_agent_user() {
         fi
 
         # Add user to docker group when sandbox mode requires Docker
+        log_debug "SANDBOX_MODE=${SANDBOX_MODE:-non-main}"
         if [ "${SANDBOX_MODE:-non-main}" != "off" ]; then
             if run_cmd --as root "getent group docker" &> /dev/null; then
                 log_info "Adding $AGENT_USERNAME to docker group for sandbox support..."

@@ -49,6 +49,7 @@ setup_gog_keyring_credentials() {
     fi
 
     if [ "$needs_keyring_setup" = true ]; then
+        log_info "Generating GOG file-keyring credentials..."
         local gog_password
         gog_password=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
 
@@ -147,18 +148,29 @@ generate_configuration() {
     log_info "Generating agent auth profile..."
     local profiles_json='{ "version": 1, "profiles": {'
     local first_profile=true
+    local profile_count=0
 
     if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
         profiles_json+="\"anthropic:manual\": { \"type\": \"token\", \"provider\": \"anthropic\", \"token\": \"${ANTHROPIC_API_KEY}\" }"
         first_profile=false
+        profile_count=$((profile_count + 1))
+        log_debug "Added auth profile: anthropic:manual"
     fi
 
     if [ -n "${OPENROUTER_API_KEY:-}" ]; then
         [ "$first_profile" = "false" ] && profiles_json+=","
         profiles_json+="\"openrouter:manual\": { \"type\": \"token\", \"provider\": \"openrouter\", \"token\": \"${OPENROUTER_API_KEY}\" }"
+        profile_count=$((profile_count + 1))
+        log_debug "Added auth profile: openrouter:manual"
     fi
 
     profiles_json+='}}'
+
+    if [ "$profile_count" -eq 0 ]; then
+        log_warn "No LLM provider keys found — auth-profiles.json will be empty"
+    else
+        log_info "Generated $profile_count auth profile(s)"
+    fi
     echo "$profiles_json" | python3 -m json.tool > "$temp_dir/auth-profiles.json" 2>/dev/null \
         || echo "$profiles_json" > "$temp_dir/auth-profiles.json"
 

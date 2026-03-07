@@ -69,6 +69,7 @@ install_via_package() {
     MINION_BIN=$(run_cmd --as "$exec_user" "which minion" 2>/dev/null || echo "")
 
     if [ -z "$MINION_BIN" ]; then
+        log_warn "'which minion' returned empty — searching known global bin paths..."
         # Try known global bin paths
         local candidates=(
             "${AGENT_HOME_DIR:-$HOME}/.local/bin/minion"
@@ -78,8 +79,10 @@ install_via_package() {
             "/usr/bin/minion"
         )
         for candidate in "${candidates[@]}"; do
+            log_debug "Checking candidate: $candidate"
             if [ -x "$candidate" ] || run_cmd --as "$exec_user" "[ -x '$candidate' ]" 2>/dev/null; then
                 MINION_BIN="$candidate"
+                log_info "Found minion binary at fallback path: $candidate"
                 break
             fi
         done
@@ -202,6 +205,7 @@ install_minion() {
     phase_start "Minion Install" "40"
 
     log_info "Install method: $install_method"
+    log_debug "AGENT_USERNAME=${AGENT_USERNAME:-$(whoami)}, PACKAGE_MANAGER=${PACKAGE_MANAGER:-npm}"
 
     if [ "$install_method" = "source" ]; then
         install_via_source

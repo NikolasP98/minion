@@ -37,6 +37,7 @@ setup_environment() {
     phase_start "Environment Setup" "30"
 
     NODE_INSTALL_METHOD="${NODE_INSTALL_METHOD:-apt}"
+    log_debug "NODE_INSTALL_METHOD=$NODE_INSTALL_METHOD, INSTALL_METHOD=${INSTALL_METHOD:-package}, PACKAGE_MANAGER=${PACKAGE_MANAGER:-npm}"
 
     # --- Node.js ---
     local node_ver
@@ -106,6 +107,7 @@ setup_environment() {
 
     # --- Package manager & build tools (install-method-dependent) ---
     local install_method="${INSTALL_METHOD:-package}"
+    log_debug "Configuring build toolchain for install_method=$install_method"
 
     if [ "$install_method" = "source" ]; then
         # Source installs need pnpm, gh CLI, and build-essential

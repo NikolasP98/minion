@@ -55,6 +55,7 @@ get_ssh_pubkey() {
     # 3. 1Password CLI
     local op_ref="${OP_SSH_KEY_REF:-op://Personal/SSH Key/public key}"
     if command -v op &> /dev/null; then
+        log_debug "1Password CLI detected, attempting key fetch"
         log_info "Fetching SSH public key from 1Password: $op_ref"
         local key
         if key=$(op read "$op_ref" 2>/dev/null); then
@@ -199,6 +200,7 @@ step_tailscale() {
 
 vps_bootstrap() {
     phase_start "VPS Bootstrap" "10"
+    log_debug "VPS_HOSTNAME=${VPS_HOSTNAME:-unset}, ADMIN_USER=${ADMIN_USER:-niko}, EXEC_MODE=${EXEC_MODE:-local}"
 
     step_system_update
     step_base_packages

@@ -102,21 +102,24 @@ validate_required_variables() {
     for var in "${LLM_PROVIDER_KEYS[@]}"; do
         if [ -n "${!var:-}" ]; then
             has_provider=true
+            log_debug "LLM provider key found: $var"
             break
         fi
     done
     if [ "$has_provider" = "false" ]; then
         missing+=("ANTHROPIC_API_KEY or OPENROUTER_API_KEY")
+        log_warn "No LLM provider key set — at least one of ANTHROPIC_API_KEY or OPENROUTER_API_KEY is required"
     fi
 
     if [ ${#missing[@]} -gt 0 ]; then
-        log_error "Missing required variables:"
+        log_error "Missing ${#missing[@]} required variable(s):"
         for var in "${missing[@]}"; do
             echo -e "  - ${YELLOW}$var${NC}"
         done
         return 1
     fi
 
+    log_debug "All required variables validated successfully"
     return 0
 }
 
@@ -147,6 +150,9 @@ derive_system_variables() {
     # Generate auth token if not provided
     if [ -z "${GATEWAY_AUTH_TOKEN:-}" ]; then
         GATEWAY_AUTH_TOKEN=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || openssl rand -hex 16)
+        log_debug "Generated new gateway auth token"
+    else
+        log_debug "Using existing gateway auth token"
     fi
 
     # Set directory paths based on mode
@@ -159,10 +165,13 @@ derive_system_variables() {
     # Source resolved paths from Phase 40 if available (supports --start-from resume)
     local state_file="${LOG_DIR:-/tmp/minion-setup}/resolved-paths.sh"
     if [ -f "$state_file" ]; then
+        log_debug "Restoring resolved paths from $state_file"
         # Only source values that aren't already set
         local _saved_bin _saved_root _saved_pkg_root _saved_node
         # shellcheck disable=SC1090
         source "$state_file"
+    else
+        log_debug "No resolved-paths.sh found (Phase 40 not yet run or first invocation)"
     fi
 
     if [ "$INSTALL_METHOD" = "source" ]; then
@@ -190,11 +199,16 @@ derive_system_variables() {
     if [ -z "${AGENT_MODEL:-}" ]; then
         if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
             AGENT_MODEL="anthropic/claude-sonnet-4-5"
+            log_debug "Auto-selected model: $AGENT_MODEL (Anthropic key present)"
         elif [ -n "${OPENROUTER_API_KEY:-}" ]; then
             AGENT_MODEL="openrouter/openai/gpt-4o"
+            log_debug "Auto-selected model: $AGENT_MODEL (OpenRouter key present)"
         else
             AGENT_MODEL="anthropic/claude-sonnet-4-5"
+            log_debug "Auto-selected model: $AGENT_MODEL (default, no provider key found)"
         fi
+    else
+        log_debug "Using user-specified model: $AGENT_MODEL"
     fi
 
     # Security defaults
