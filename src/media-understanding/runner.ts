@@ -441,11 +441,10 @@ async function resolveAutoEntries(params: {
   if (activeEntry) {
     return [activeEntry];
   }
-  if (params.capability === "audio") {
-    const localAudio = await resolveLocalAudioEntry();
-    if (localAudio) {
-      return [localAudio];
-    }
+  // Try API/cloud providers first (faster, more reliable)
+  const keys = await resolveKeyEntry(params);
+  if (keys) {
+    return [keys];
   }
   if (params.capability === "image") {
     const imageModelEntries = resolveImageModelFromAgentDefaults(params.cfg);
@@ -453,13 +452,16 @@ async function resolveAutoEntries(params: {
       return imageModelEntries;
     }
   }
+  // Fall back to local CLI tools
+  if (params.capability === "audio") {
+    const localAudio = await resolveLocalAudioEntry();
+    if (localAudio) {
+      return [localAudio];
+    }
+  }
   const gemini = await resolveGeminiCliEntry(params.capability);
   if (gemini) {
     return [gemini];
-  }
-  const keys = await resolveKeyEntry(params);
-  if (keys) {
-    return [keys];
   }
   return [];
 }
