@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { applySnapshotDefaults } from "../config/io.js";
 import {
   buildGatewayReloadPlan,
   diffConfigPaths,
@@ -46,6 +47,28 @@ describe("buildGatewayReloadPlan", () => {
     expect(plan.restartGateway).toBe(true);
     expect(plan.reloadHooks).toBe(true);
     expect(plan.noopPaths).toContain("identity.name");
+  });
+});
+
+describe("applySnapshotDefaults normalization", () => {
+  it("produces no diff when comparing two normalized configs", () => {
+    const raw = { channels: { discord: { enabled: true } } };
+    const normalized1 = applySnapshotDefaults(structuredClone(raw));
+    const normalized2 = applySnapshotDefaults(structuredClone(raw));
+    expect(diffConfigPaths(normalized1, normalized2)).toEqual([]);
+  });
+
+  it("prevents phantom diffs from missing defaults", () => {
+    const raw = { channels: { discord: { enabled: true } } };
+    const snapshot = applySnapshotDefaults(structuredClone(raw));
+    // Simulate a validated config without full normalization
+    const validated = structuredClone(raw);
+    // Without normalization, diff would see extra paths from defaults
+    const rawDiff = diffConfigPaths(snapshot, validated);
+    // After normalization, diff should be empty
+    const normalizedDiff = diffConfigPaths(snapshot, applySnapshotDefaults(validated));
+    expect(normalizedDiff.length).toBeLessThanOrEqual(rawDiff.length);
+    expect(normalizedDiff).toEqual([]);
   });
 });
 

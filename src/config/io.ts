@@ -812,17 +812,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           // for config set/unset operations (issue #6070)
           resolved: coerceConfig(resolvedConfigRaw),
           valid: true,
-          config: normalizeConfigPaths(
-            applyTalkApiKey(
-              applyModelDefaults(
-                applyAgentDefaults(
-                  applySessionDefaults(
-                    applyLoggingDefaults(applyMessageDefaults(validated.config)),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          config: applySnapshotDefaults(validated.config),
           hash,
           issues: [],
           warnings: validated.warnings,
@@ -1160,6 +1150,21 @@ function shouldUseConfigCache(env: NodeJS.ProcessEnv): boolean {
 
 export function clearConfigCache(): void {
   configCache = null;
+}
+
+/**
+ * Full normalization pipeline applied when building a config snapshot.
+ * Ensures consistent defaults so that diffConfigPaths doesn't see phantom diffs
+ * between a snapshot config and a freshly-validated config.
+ */
+export function applySnapshotDefaults(cfg: OpenClawConfig): OpenClawConfig {
+  return normalizeConfigPaths(
+    applyTalkApiKey(
+      applyModelDefaults(
+        applyAgentDefaults(applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(cfg)))),
+      ),
+    ),
+  );
 }
 
 export function loadConfig(): OpenClawConfig {

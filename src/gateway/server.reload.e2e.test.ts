@@ -172,29 +172,29 @@ describe("gateway hot reload", () => {
   let prevSkipProviders: string | undefined;
 
   beforeEach(() => {
-    prevSkipChannels = process.env.MINION_SKIP_CHANNELS;
-    prevSkipGmail = process.env.MINION_SKIP_GMAIL_WATCHER;
-    prevSkipProviders = process.env.MINION_SKIP_PROVIDERS;
-    process.env.MINION_SKIP_CHANNELS = "0";
-    delete process.env.MINION_SKIP_GMAIL_WATCHER;
-    delete process.env.MINION_SKIP_PROVIDERS;
+    prevSkipChannels = process.env.OPENCLAW_SKIP_CHANNELS;
+    prevSkipGmail = process.env.OPENCLAW_SKIP_GMAIL_WATCHER;
+    prevSkipProviders = process.env.OPENCLAW_SKIP_PROVIDERS;
+    delete process.env.OPENCLAW_SKIP_CHANNELS;
+    delete process.env.OPENCLAW_SKIP_GMAIL_WATCHER;
+    delete process.env.OPENCLAW_SKIP_PROVIDERS;
   });
 
   afterEach(() => {
     if (prevSkipChannels === undefined) {
-      delete process.env.MINION_SKIP_CHANNELS;
+      delete process.env.OPENCLAW_SKIP_CHANNELS;
     } else {
-      process.env.MINION_SKIP_CHANNELS = prevSkipChannels;
+      process.env.OPENCLAW_SKIP_CHANNELS = prevSkipChannels;
     }
     if (prevSkipGmail === undefined) {
-      delete process.env.MINION_SKIP_GMAIL_WATCHER;
+      delete process.env.OPENCLAW_SKIP_GMAIL_WATCHER;
     } else {
-      process.env.MINION_SKIP_GMAIL_WATCHER = prevSkipGmail;
+      process.env.OPENCLAW_SKIP_GMAIL_WATCHER = prevSkipGmail;
     }
     if (prevSkipProviders === undefined) {
-      delete process.env.MINION_SKIP_PROVIDERS;
+      delete process.env.OPENCLAW_SKIP_PROVIDERS;
     } else {
-      process.env.MINION_SKIP_PROVIDERS = prevSkipProviders;
+      process.env.OPENCLAW_SKIP_PROVIDERS = prevSkipProviders;
     }
   });
 

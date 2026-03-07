@@ -1,4 +1,5 @@
 export {
+  applySnapshotDefaults,
   clearConfigCache,
   createConfigIO,
   loadConfig,

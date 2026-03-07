@@ -1,6 +1,7 @@
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { listChannelPlugins } from "../../channels/plugins/index.js";
 import {
+  applySnapshotDefaults,
   CONFIG_PATH,
   loadConfig,
   parseConfigJson5,
@@ -20,6 +21,7 @@ import {
 import { buildConfigSchema, type ConfigSchemaResponse } from "../../config/schema.js";
 import { extractDeliveryInfo } from "../../config/sessions.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { isTruthyEnvValue } from "../../infra/env.js";
 import {
   formatDoctorNonInteractiveHint,
   type RestartSentinelPayload,
@@ -252,12 +254,42 @@ async function resolveConfigReload(opts: {
     plan: import("../config-reload.js").GatewayReloadPlan,
     config: Record<string, unknown>,
   ) => Promise<void>;
+  log?: { info: (msg: string) => void };
 }): Promise<{ reloadMode: "hot" | "restart" | "noop"; restart?: unknown }> {
-  const changedPaths = diffConfigPaths(opts.prevConfig ?? {}, opts.nextConfig);
+  const normalizedNext = applySnapshotDefaults(opts.nextConfig);
+  const changedPaths = diffConfigPaths(opts.prevConfig ?? {}, normalizedNext);
   const plan = buildGatewayReloadPlan(changedPaths);
-  const reloadSettings = resolveGatewayReloadSettings(opts.nextConfig);
+  const reloadSettings = resolveGatewayReloadSettings(normalizedNext);
+
+  const hasHotActions =
+    plan.reloadHooks ||
+    plan.restartGmailWatcher ||
+    plan.restartBrowserControl ||
+    plan.restartCron ||
+    plan.restartHeartbeat ||
+    plan.restartChannels.size > 0;
+
+  opts.log?.info(
+    `config reload: paths=[${changedPaths.join(", ")}] plan={restart=${plan.restartGateway}, hot=${hasHotActions}, noop=${plan.noopPaths.join(", ")}}`,
+  );
 
   if (changedPaths.length === 0) {
+    suppressNextConfigReload();
+    return { reloadMode: "noop" };
+  }
+
+  // Env var opt-out: force restart mode
+  if (isTruthyEnvValue(process.env.MINION_SKIP_INLINE_HOT_RELOAD)) {
+    suppressNextConfigReload();
+    const restart = scheduleGatewaySigusr1Restart({
+      delayMs: opts.restartDelayMs,
+      reason: `${opts.reason} (MINION_SKIP_INLINE_HOT_RELOAD)`,
+    });
+    return { reloadMode: "restart", restart };
+  }
+
+  // All paths are noop (identity, logging, etc.) — no reload needed
+  if (!plan.restartGateway && !hasHotActions) {
     suppressNextConfigReload();
     return { reloadMode: "noop" };
   }
@@ -267,7 +299,7 @@ async function resolveConfigReload(opts: {
 
   if (canHotReload && opts.applyHotReload) {
     suppressNextConfigReload();
-    await opts.applyHotReload(plan, opts.nextConfig);
+    await opts.applyHotReload(plan, normalizedNext);
     return { reloadMode: "hot" };
   }
 

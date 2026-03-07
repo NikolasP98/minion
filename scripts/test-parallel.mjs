@@ -10,35 +10,21 @@ const pnpm = "pnpm";
 const unitIsolatedFilesRaw = [
   "src/plugins/loader.test.ts",
   "src/plugins/tools.optional.test.ts",
-  "src/agents/session-tool-result-guard.tool-result-persist-hook.test.ts",
   "src/security/fix.test.ts",
   "src/security/audit.test.ts",
   "src/utils.test.ts",
   "src/auto-reply/tool-meta.test.ts",
   "src/auto-reply/envelope.test.ts",
-  "src/commands/auth-choice.test.ts",
   "src/media/store.test.ts",
-  "src/media/store.header-ext.test.ts",
   "src/web/media.test.ts",
-  "src/web/auto-reply.web-auto-reply.falls-back-text-media-send-fails.test.ts",
-  "src/browser/server.covers-additional-endpoint-branches.test.ts",
   "src/browser/server.post-tabs-open-profile-unknown-returns-404.test.ts",
   "src/browser/server.agent-contract-snapshot-endpoints.test.ts",
   "src/browser/server.agent-contract-form-layout-act-commands.test.ts",
-  "src/browser/server.skips-default-maxchars-explicitly-set-zero.test.ts",
   "src/browser/server.auth-token-gates-http.test.ts",
   // Keep this high-variance heavy file off the unit-fast critical path.
   "src/auto-reply/reply.block-streaming.test.ts",
   // Archive extraction/fixture-heavy suite; keep off unit-fast critical path.
   "src/hooks/install.test.ts",
-  // Setup-heavy bot bootstrap suite.
-  "src/telegram/bot.create-telegram-bot.test.ts",
-  // Medium-heavy bot behavior suite; move off unit-fast critical path.
-  "src/telegram/bot.test.ts",
-  // Slack slash registration tests are setup-heavy and can bottleneck unit-fast.
-  "src/slack/monitor/slash.test.ts",
-  // Uses process-level unhandledRejection listeners; keep it off vmForks to avoid cross-file leakage.
-  "src/imessage/monitor.shutdown.unhandled-rejection.test.ts",
 ];
 const unitIsolatedFiles = unitIsolatedFilesRaw.filter((file) => fs.existsSync(file));
 

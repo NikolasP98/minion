@@ -9,8 +9,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { GatewayClient } from "../src/gateway/client.js";
 import { connectGatewayClient } from "../src/gateway/test-helpers.e2e.js";
 import { loadOrCreateDeviceIdentity } from "../src/infra/device-identity.js";
+import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../src/shared/message-channel.js";
 import { sleep } from "../src/utils.js";
-import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../src/utils/message-channel.js";
 
 type GatewayInstance = {
   name: string;
