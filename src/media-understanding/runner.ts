@@ -76,10 +76,25 @@ export function createMediaAttachmentCache(attachments: MediaAttachment[]): Medi
 
 const binaryCache = new Map<string, Promise<string | null>>();
 const geminiProbeCache = new Map<string, Promise<boolean>>();
+const MAX_BINARY_CACHE_ENTRIES = 100;
 
 export function clearMediaUnderstandingBinaryCacheForTests(): void {
   binaryCache.clear();
   geminiProbeCache.clear();
+}
+
+function evictOldest(map: Map<string, unknown>, max: number): void {
+  if (map.size <= max) {
+    return;
+  }
+  const excess = map.size - max;
+  const iter = map.keys();
+  for (let i = 0; i < excess; i++) {
+    const key = iter.next().value;
+    if (key !== undefined) {
+      map.delete(key);
+    }
+  }
 }
 
 function expandHomeDir(value: string): string {
@@ -170,6 +185,7 @@ async function findBinary(name: string): Promise<string | null> {
     return null;
   })();
   binaryCache.set(name, resolved);
+  evictOldest(binaryCache, MAX_BINARY_CACHE_ENTRIES);
   return resolved;
 }
 

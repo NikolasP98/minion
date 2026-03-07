@@ -49,66 +49,82 @@ export async function startGatewaySidecars(params: {
   logChannels: { info: (msg: string) => void; error: (msg: string) => void };
   logBrowser: { error: (msg: string) => void };
 }) {
-  try {
-    const stateDir = resolveStateDir(process.env);
-    const sessionDirs = await resolveAgentSessionDirs(stateDir);
-    for (const sessionsDir of sessionDirs) {
-      await cleanStaleLockFiles({
-        sessionsDir,
-        staleMs: SESSION_LOCK_STALE_MS,
-        removeStale: true,
-        log: { warn: (message) => params.log.warn(message) },
-      });
+  // --- Phase 1: Independent startup tasks (parallelized) ---
+  const sessionLockCleanup = (async () => {
+    try {
+      const stateDir = resolveStateDir(process.env);
+      const sessionDirs = await resolveAgentSessionDirs(stateDir);
+      for (const sessionsDir of sessionDirs) {
+        await cleanStaleLockFiles({
+          sessionsDir,
+          staleMs: SESSION_LOCK_STALE_MS,
+          removeStale: true,
+          log: { warn: (message) => params.log.warn(message) },
+        });
+      }
+    } catch (err) {
+      params.log.warn(`session lock cleanup failed on startup: ${String(err)}`);
     }
-  } catch (err) {
-    params.log.warn(`session lock cleanup failed on startup: ${String(err)}`);
-  }
+  })();
 
   // Prune old chat trace files (best-effort).
   pruneOldTraceFiles();
 
-  // Bridge Google credentials into auth-profiles (Phase 1 — non-breaking).
-  try {
-    await syncGoogleCredentialsToAuthStore();
-  } catch (err) {
-    params.log.warn(`Google credential bridge failed: ${String(err)}`);
-  }
+  const credentialSync = (async () => {
+    // Bridge Google credentials into auth-profiles (Phase 1 — non-breaking).
+    try {
+      await syncGoogleCredentialsToAuthStore();
+    } catch (err) {
+      params.log.warn(`Google credential bridge failed: ${String(err)}`);
+    }
+  })();
 
   // Validate credential health on startup and start proactive refresh scheduler.
   runStartupCredentialCheck({ cfg: params.cfg });
   const refreshScheduler = startRefreshScheduler();
 
-  // Start OpenClaw browser control server (unless disabled via config).
-  let browserControl: Awaited<ReturnType<typeof startBrowserControlServerIfEnabled>> = null;
-  try {
-    browserControl = await startBrowserControlServerIfEnabled();
-  } catch (err) {
-    params.logBrowser.error(`server failed to start: ${String(err)}`);
-  }
-
-  // Start Google OAuth callback server if enabled (hooks.gogOAuth).
-  let gogOAuthServer: { stop: () => Promise<void> } | null = null;
-  if (
-    params.cfg.hooks?.gogOAuth?.enabled !== false &&
-    !isTruthyEnvValue(process.env.OPENCLAW_SKIP_GOG_OAUTH)
-  ) {
+  const browserControlTask = (async () => {
     try {
-      const { startGogOAuthServer } = await import("../../hooks/gog-oauth-server.js");
-      gogOAuthServer = await startGogOAuthServer(
-        params.cfg.hooks?.gogOAuth || {},
-        params.defaultWorkspaceDir,
-      );
-      params.logHooks.info("google oauth server started");
+      return await startBrowserControlServerIfEnabled();
     } catch (err) {
-      params.logHooks.error(`google oauth server failed to start: ${String(err)}`);
+      params.logBrowser.error(`server failed to start: ${String(err)}`);
+      return null;
     }
-  }
+  })();
 
-  // Start Gmail watcher if configured (hooks.gmail.account).
-  await startGmailWatcherWithLogs({
+  const gogOAuthTask = (async () => {
+    if (
+      params.cfg.hooks?.gogOAuth?.enabled !== false &&
+      !isTruthyEnvValue(process.env.OPENCLAW_SKIP_GOG_OAUTH)
+    ) {
+      try {
+        const { startGogOAuthServer } = await import("../../hooks/gog-oauth-server.js");
+        const server = await startGogOAuthServer(
+          params.cfg.hooks?.gogOAuth || {},
+          params.defaultWorkspaceDir,
+        );
+        params.logHooks.info("google oauth server started");
+        return server;
+      } catch (err) {
+        params.logHooks.error(`google oauth server failed to start: ${String(err)}`);
+      }
+    }
+    return null;
+  })();
+
+  const gmailWatcherTask = startGmailWatcherWithLogs({
     cfg: params.cfg,
     log: params.logHooks,
   });
+
+  // Wait for all independent startup tasks to complete.
+  const [, , browserControl, gogOAuthServer] = await Promise.all([
+    sessionLockCleanup,
+    credentialSync,
+    browserControlTask,
+    gogOAuthTask,
+    gmailWatcherTask,
+  ]);
 
   // Validate hooks.gmail.model if configured.
   if (params.cfg.hooks?.gmail?.model) {

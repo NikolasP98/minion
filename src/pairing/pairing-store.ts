@@ -7,8 +7,11 @@ import type { ChannelId, ChannelPairingAdapter } from "../channels/plugins/types
 import { resolveOAuthDir, resolveStateDir } from "../config/paths.js";
 import { withFileLock as withPathLock } from "../infra/file-lock.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { readJsonFileWithFallback, writeJsonFileAtomically } from "../plugin-sdk/json-store.js";
 import { hashToken, migrateToken, verifyToken } from "./token-hash.js";
+
+const log = createSubsystemLogger("pairing");
 
 const PAIRING_CODE_LENGTH = 8;
 const PAIRING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -332,19 +335,24 @@ export async function readChannelAllowFromStore(
   env: NodeJS.ProcessEnv = process.env,
   accountId?: string,
 ): Promise<string[]> {
-  const normalizedAccountId = accountId?.trim().toLowerCase() ?? "";
-  if (!normalizedAccountId) {
-    const filePath = resolveAllowFromPath(channel, env);
-    return await readAllowFromStateForPath(channel, filePath);
-  }
+  try {
+    const normalizedAccountId = accountId?.trim().toLowerCase() ?? "";
+    if (!normalizedAccountId) {
+      const filePath = resolveAllowFromPath(channel, env);
+      return await readAllowFromStateForPath(channel, filePath);
+    }
 
-  const scopedPath = resolveAllowFromPath(channel, env, accountId);
-  const scopedEntries = await readAllowFromStateForPath(channel, scopedPath);
-  // Backward compatibility: legacy channel-level allowFrom store was unscoped.
-  // Keep honoring it alongside account-scoped files to prevent re-pair prompts after upgrades.
-  const legacyPath = resolveAllowFromPath(channel, env);
-  const legacyEntries = await readAllowFromStateForPath(channel, legacyPath);
-  return dedupePreserveOrder([...scopedEntries, ...legacyEntries]);
+    const scopedPath = resolveAllowFromPath(channel, env, accountId);
+    const scopedEntries = await readAllowFromStateForPath(channel, scopedPath);
+    // Backward compatibility: legacy channel-level allowFrom store was unscoped.
+    // Keep honoring it alongside account-scoped files to prevent re-pair prompts after upgrades.
+    const legacyPath = resolveAllowFromPath(channel, env);
+    const legacyEntries = await readAllowFromStateForPath(channel, legacyPath);
+    return dedupePreserveOrder([...scopedEntries, ...legacyEntries]);
+  } catch (err) {
+    log.warn(`failed to read allowFrom store for ${channel}: ${String(err)}`);
+    return [];
+  }
 }
 
 type AllowFromStoreEntryUpdateParams = {

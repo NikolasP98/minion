@@ -9,6 +9,7 @@ type SessionManagerCacheEntry = {
 
 const SESSION_MANAGER_CACHE = new Map<string, SessionManagerCacheEntry>();
 const DEFAULT_SESSION_MANAGER_TTL_MS = 45_000; // 45 seconds
+const MAX_CACHE_ENTRIES = 200;
 
 function getSessionManagerTtl(): number {
   return resolveCacheTtlMs({
@@ -21,6 +22,16 @@ function isSessionManagerCacheEnabled(): boolean {
   return isCacheEnabled(getSessionManagerTtl());
 }
 
+function pruneStaleEntries(): void {
+  const now = Date.now();
+  const ttl = getSessionManagerTtl();
+  for (const [key, entry] of SESSION_MANAGER_CACHE) {
+    if (now - entry.loadedAt > ttl) {
+      SESSION_MANAGER_CACHE.delete(key);
+    }
+  }
+}
+
 export function trackSessionManagerAccess(sessionFile: string): void {
   if (!isSessionManagerCacheEnabled()) {
     return;
@@ -30,6 +41,10 @@ export function trackSessionManagerAccess(sessionFile: string): void {
     sessionFile,
     loadedAt: now,
   });
+  // Evict stale entries when cache grows beyond limit
+  if (SESSION_MANAGER_CACHE.size > MAX_CACHE_ENTRIES) {
+    pruneStaleEntries();
+  }
 }
 
 function isSessionManagerCached(sessionFile: string): boolean {

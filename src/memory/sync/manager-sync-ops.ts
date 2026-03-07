@@ -559,6 +559,23 @@ export abstract class MemoryManagerSyncOps {
     state.pendingMessages = 0;
   }
 
+  /** Evict oldest sessionDeltas entries when the map exceeds a reasonable size. */
+  protected pruneStaleSessionDeltas(): void {
+    const MAX_SESSION_DELTAS = 500;
+    if (this.sessionDeltas.size <= MAX_SESSION_DELTAS) {
+      return;
+    }
+    // Map iterates in insertion order; drop the oldest entries.
+    const excess = this.sessionDeltas.size - MAX_SESSION_DELTAS;
+    const iter = this.sessionDeltas.keys();
+    for (let i = 0; i < excess; i++) {
+      const key = iter.next().value;
+      if (key !== undefined) {
+        this.sessionDeltas.delete(key);
+      }
+    }
+  }
+
   private isSessionFileForAgent(sessionFile: string): boolean {
     if (!sessionFile) {
       return false;
@@ -576,6 +593,7 @@ export abstract class MemoryManagerSyncOps {
     }
     const ms = minutes * 60 * 1000;
     this.intervalTimer = setInterval(() => {
+      this.pruneStaleSessionDeltas();
       void this.sync({ reason: "interval" }).catch((err) => {
         log.warn(`memory sync failed (interval): ${String(err)}`);
       });

@@ -204,6 +204,13 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     });
     if (key) {
       this.sessionWarm.add(key);
+      // Prevent unbounded growth; oldest entries evicted via Set insertion order.
+      if (this.sessionWarm.size > 500) {
+        const first = this.sessionWarm.values().next().value;
+        if (first !== undefined) {
+          this.sessionWarm.delete(first);
+        }
+      }
     }
   }
 
