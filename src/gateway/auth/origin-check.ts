@@ -21,6 +21,20 @@ function parseOrigin(
   }
 }
 
+/**
+ * Match an origin against a pattern that may contain a `*` wildcard for the port,
+ * e.g. `http://localhost:*` matches `http://localhost:5173`.
+ */
+function matchesOriginPattern(pattern: string, origin: string): boolean {
+  if (!pattern.includes("*")) {
+    return pattern === origin;
+  }
+  const regex = new RegExp(
+    "^" + pattern.replace(/[.*+?^${}()|[\]\\]/g, (m) => (m === "*" ? "\\d+" : "\\" + m)) + "$",
+  );
+  return regex.test(origin);
+}
+
 export function checkBrowserOrigin(params: {
   requestHost?: string;
   origin?: string;
@@ -34,7 +48,7 @@ export function checkBrowserOrigin(params: {
   const allowlist = (params.allowedOrigins ?? [])
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
-  if (allowlist.includes(parsedOrigin.origin)) {
+  if (allowlist.some((pattern) => matchesOriginPattern(pattern, parsedOrigin.origin))) {
     return { ok: true };
   }
 

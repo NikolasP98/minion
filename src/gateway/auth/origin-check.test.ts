@@ -42,4 +42,33 @@ describe("checkBrowserOrigin", () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it("accepts wildcard port in allowedOrigins", () => {
+    const result = checkBrowserOrigin({
+      requestHost: "gateway.example.com:18789",
+      origin: "http://localhost:5173",
+      allowedOrigins: ["http://localhost:*"],
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("wildcard port matches any port number", () => {
+    for (const port of ["3000", "4173", "5173", "8787"]) {
+      const result = checkBrowserOrigin({
+        requestHost: "gateway.example.com:18789",
+        origin: `http://localhost:${port}`,
+        allowedOrigins: ["http://localhost:*"],
+      });
+      expect(result.ok, `port ${port} should match`).toBe(true);
+    }
+  });
+
+  it("wildcard port does not match non-numeric segments", () => {
+    const result = checkBrowserOrigin({
+      requestHost: "gateway.example.com:18789",
+      origin: "http://localhost:abc",
+      allowedOrigins: ["http://localhost:*"],
+    });
+    expect(result.ok).toBe(false);
+  });
 });
