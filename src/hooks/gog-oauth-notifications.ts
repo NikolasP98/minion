@@ -1,13 +1,10 @@
 /**
- * OAuth notification system for async auth flow updates
+ * OAuth notification system for async auth flow updates.
+ *
+ * Sends notifications directly via routeReply (no LLM round-trip).
  */
 
-import { resolveAgentDir, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
-import { createFollowupRunner } from "../auto-reply/reply/followup-runner.js";
-import { scheduleFollowupDrain } from "../auto-reply/reply/queue/drain.js";
-import { enqueueFollowupRun } from "../auto-reply/reply/queue/enqueue.ts";
-import type { FollowupRun } from "../auto-reply/reply/queue/types.js";
-import { createTypingController } from "../auto-reply/reply/typing.js";
+import { routeReply } from "../auto-reply/reply/route-reply.js";
 import { loadConfig } from "../config/config.js";
 import { loadSessionStore, resolveDefaultSessionStorePath } from "../config/sessions.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -31,9 +28,13 @@ export interface OAuthNotification {
 }
 
 /**
- * Enqueue an OAuth notification to a session
+ * Send an OAuth notification directly to the originating channel.
  */
-async function enqueueOAuthNotification(notification: OAuthNotification): Promise<void> {
+async function sendOAuthNotification(notification: OAuthNotification): Promise<void> {
+  log.info(
+    `Sending OAuth ${notification.type} notification for ${notification.email} (session=${notification.sessionKey})`,
+  );
+
   // Load session entry to get routing information
   const storePath = resolveDefaultSessionStorePath(notification.agentId);
   const sessionStore = loadSessionStore(storePath);
@@ -44,75 +45,36 @@ async function enqueueOAuthNotification(notification: OAuthNotification): Promis
     return;
   }
 
-  // Load config and resolve agent paths
-  const config = loadConfig();
-  const agentDir = resolveAgentDir(config, notification.agentId);
-  const workspaceDir = resolveAgentWorkspaceDir(config, notification.agentId);
-
   // Resolve delivery routing — prefer lastChannel/lastTo, fall back to deliveryContext
-  const originatingChannel = sessionEntry.lastChannel ?? sessionEntry.deliveryContext?.channel;
-  const originatingTo = sessionEntry.lastTo ?? sessionEntry.deliveryContext?.to;
-  const originatingAccountId =
-    sessionEntry.lastAccountId ?? sessionEntry.deliveryContext?.accountId;
-  const originatingThreadId = sessionEntry.lastThreadId ?? sessionEntry.deliveryContext?.threadId;
+  const channel = sessionEntry.lastChannel ?? sessionEntry.deliveryContext?.channel;
+  const to = sessionEntry.lastTo ?? sessionEntry.deliveryContext?.to;
+  const accountId = sessionEntry.lastAccountId ?? sessionEntry.deliveryContext?.accountId;
+  const threadId = sessionEntry.lastThreadId ?? sessionEntry.deliveryContext?.threadId;
 
-  if (!originatingChannel || !originatingTo) {
+  if (!channel || !to) {
     log.error(
       `Cannot route OAuth notification for session ${notification.sessionKey}: no channel/to (lastChannel=${sessionEntry.lastChannel}, deliveryContext.channel=${sessionEntry.deliveryContext?.channel})`,
     );
     return;
   }
 
-  // Build followup run from session entry
-  const followupRun: FollowupRun = {
-    prompt: notification.message,
-    summaryLine: `OAuth ${notification.type}: ${notification.email}`,
-    enqueuedAt: Date.now(),
-    originatingChannel,
-    originatingTo,
-    originatingAccountId,
-    originatingThreadId,
-    originatingChatType: sessionEntry.chatType,
-    run: {
-      agentId: notification.agentId,
-      agentDir,
-      sessionId: sessionEntry.sessionId || notification.sessionKey,
-      sessionKey: notification.sessionKey,
-      messageProvider: originatingChannel,
-      sessionFile: sessionEntry.sessionFile || "",
-      workspaceDir,
-      config,
-      provider: sessionEntry.modelProvider || "anthropic",
-      model: sessionEntry.model || "claude-sonnet-4-5-20250929",
-      timeoutMs: 300000, // 5 minutes
-      blockReplyBreak: "message_end",
-    },
-  };
+  log.info(`Routing OAuth notification to ${channel}:${to}`);
 
-  // Enqueue the notification
-  const enqueued = enqueueFollowupRun(
-    notification.sessionKey,
-    followupRun,
-    {
-      mode: "followup",
-      debounceMs: 0, // Send immediately
-    },
-    "none", // No deduplication
-  );
+  const cfg = loadConfig();
+  const result = await routeReply({
+    payload: { text: notification.message },
+    channel,
+    to,
+    sessionKey: notification.sessionKey,
+    accountId,
+    threadId,
+    cfg,
+  });
 
-  // Trigger drain so the notification is processed immediately
-  if (enqueued) {
-    const typing = createTypingController({});
-    const runFollowup = createFollowupRunner({
-      typing,
-      typingMode: "never",
-      sessionEntry,
-      sessionStore,
-      sessionKey: notification.sessionKey,
-      storePath,
-      defaultModel: sessionEntry.model || "claude-sonnet-4-5-20250929",
-    });
-    scheduleFollowupDrain(notification.sessionKey, runFollowup);
+  if (!result.ok) {
+    log.error(`OAuth notification delivery failed: ${result.error ?? "unknown error"}`);
+  } else {
+    log.info(`OAuth notification delivered to ${channel}:${to}`);
   }
 }
 
@@ -133,7 +95,7 @@ export async function notifyAuthSuccess(
     message += `\n⚠ Warning: keyring sync failed (${keyringSyncError}). gog_exec will retry sync automatically on each command.`;
   }
 
-  await enqueueOAuthNotification({
+  await sendOAuthNotification({
     type: "success",
     email,
     sessionKey,
@@ -150,7 +112,7 @@ export async function notifyAuthTimeout(
   agentId: string,
   email: string,
 ): Promise<void> {
-  await enqueueOAuthNotification({
+  await sendOAuthNotification({
     type: "timeout",
     email,
     sessionKey,
@@ -176,7 +138,7 @@ export async function notifyAuthError(
     message = `✗ Google authorization for ${email} failed: ${error}. Please try again.`;
   }
 
-  await enqueueOAuthNotification({
+  await sendOAuthNotification({
     type: "error",
     email,
     sessionKey,
