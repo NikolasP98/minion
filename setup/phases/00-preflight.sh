@@ -35,6 +35,34 @@ preflight_checks() {
         derive_system_variables
     fi
 
+    # In bootstrap mode, skip API key and username validation (not needed yet)
+    if [ "${BOOTSTRAP_MODE:-false}" = "true" ]; then
+        log_info "Bootstrap mode: skipping API key and username validation"
+
+        # Only validate SSH connectivity to root@VPS
+        if [ "${EXEC_MODE:-local}" = "remote" ]; then
+            log_info "Testing SSH connection to root@${VPS_HOSTNAME}..."
+            if ! test_ssh_connection "$VPS_HOSTNAME" "root"; then
+                handle_error 1 "Cannot connect to VPS as root via SSH" "Preflight"
+                return 1
+            fi
+        fi
+
+        # If API key is provided, also validate it (bootstrap + deploy)
+        if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+            log_info "API key provided — will run bootstrap + deploy"
+            if ! validate_api_key "$ANTHROPIC_API_KEY" "anthropic"; then
+                handle_error 1 "Invalid Anthropic API key" "Preflight"
+                return 1
+            fi
+        fi
+
+        display_config
+        phase_end "Preflight Checks" "success"
+        save_checkpoint "00-preflight"
+        return 0
+    fi
+
     log_info "Validating required variables..."
     if ! validate_required_variables; then
         handle_error 1 "Required variables missing" "Preflight"

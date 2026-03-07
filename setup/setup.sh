@@ -49,6 +49,7 @@ load_defaults
 # Default values
 DRY_RUN=false
 NON_INTERACTIVE=false
+BOOTSTRAP_MODE=false
 SKIP_PHASES=()
 START_FROM_PHASE=""
 PROFILE=""
@@ -109,6 +110,13 @@ Channels:
 System:
     --node-method=METHOD    Node.js install method: apt, nvm, skip (default: apt)
 
+Bootstrap (fresh VPS):
+    --bootstrap             Run VPS bootstrap (Phase 10) before deployment phases
+    --admin-user=USER       Admin username to create (default: niko)
+    --ssh-pubkey=KEY        SSH public key string to install
+    --ssh-pubkey-file=PATH  Path to SSH public key file
+    --op-ssh-key-ref=REF    1Password reference for SSH key (default: op://Personal/SSH Key/public key)
+
 Execution:
     --non-interactive       Skip the interactive wizard; all values must be provided via flags
     --dry-run               Show what would be done without executing
@@ -150,6 +158,26 @@ Examples:
 
     # Dry run
     ./setup/setup.sh --dry-run --api-key=sk-ant-test --verbose
+
+Bootstrap (fresh VPS):
+    # Bootstrap a fresh VPS (creates admin user, hardens SSH, installs Tailscale)
+    ./setup/setup.sh --bootstrap \
+       --vps-hostname=152.53.91.108 \
+       --admin-user=niko \
+       --verbose
+
+    # Bootstrap + full deploy in one go
+    ./setup/setup.sh --bootstrap \
+       --vps-hostname=152.53.91.108 \
+       --admin-user=niko \
+       --agent-name=bot \
+       --api-key=sk-ant-xxx \
+       --verbose
+
+    # Bootstrap with explicit SSH key (instead of 1Password)
+    ./setup/setup.sh --bootstrap \
+       --vps-hostname=server.example.com \
+       --ssh-pubkey-file=~/.ssh/id_ed25519.pub
 
 EOF
     exit 0
@@ -264,6 +292,21 @@ parse_args() {
             --start-from=*)
                 START_FROM_PHASE="${1#*=}"
                 ;;
+            --bootstrap)
+                BOOTSTRAP_MODE=true
+                ;;
+            --admin-user=*)
+                ADMIN_USER="${1#*=}"
+                ;;
+            --ssh-pubkey=*)
+                SSH_PUBKEY="${1#*=}"
+                ;;
+            --ssh-pubkey-file=*)
+                SSH_PUBKEY_FILE="${1#*=}"
+                ;;
+            --op-ssh-key-ref=*)
+                OP_SSH_KEY_REF="${1#*=}"
+                ;;
             --force-reinstall)
                 FORCE_REINSTALL=true
                 ;;
@@ -366,6 +409,7 @@ execute_phase() {
 # Export all configuration variables for child processes
 export_variables() {
     export VPS_HOSTNAME TAILSCALE_AUTH_KEY ANTHROPIC_API_KEY OPENROUTER_API_KEY GITHUB_PAT
+    export BOOTSTRAP_MODE ADMIN_USER SSH_PUBKEY SSH_PUBKEY_FILE OP_SSH_KEY_REF
     export AGENT_NAME AGENT_PERSONALITY SANDBOX_MODE DM_POLICY
     export ENABLE_WHATSAPP ENABLE_TELEGRAM ENABLE_DISCORD ENABLE_WEB
     export WHATSAPP_PHONE TELEGRAM_BOT_TOKEN DISCORD_BOT_TOKEN
@@ -452,7 +496,32 @@ BANNER
     # Execute phases in sequence
     local phases=(
         "00-preflight.sh"
-        "20-user-creation.sh"
+    )
+
+    # Prepend bootstrap phase when --bootstrap is set
+    if [ "${BOOTSTRAP_MODE:-false}" = "true" ]; then
+        phases=("00-preflight.sh" "10-vps-bootstrap.sh")
+        # If no API key provided, bootstrap-only (skip deployment phases)
+        if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            log_info "Bootstrap-only mode (no API key provided, skipping deployment phases)"
+            for phase_script in "${phases[@]}"; do
+                execute_phase "${SCRIPT_DIR}/phases/${phase_script}"
+            done
+            if [ "$DRY_RUN" = true ]; then
+                echo ""
+                log_info "Dry run complete. No changes were made."
+                exit 0
+            fi
+            log_success "VPS bootstrap completed successfully!"
+            return 0
+        fi
+        # API key provided: bootstrap + full deploy
+        phases+=("20-user-creation.sh")
+    else
+        phases+=("20-user-creation.sh")
+    fi
+
+    phases+=(
         "30-environment-setup.sh"
         "40-minion-install.sh"
         "45-alias-setup.sh"

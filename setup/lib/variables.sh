@@ -180,6 +180,11 @@ derive_system_variables() {
     # Resource defaults
     MEMORY_LIMIT="${MEMORY_LIMIT:-2G}"
     CPU_QUOTA="${CPU_QUOTA:-100%}"
+
+    # Bootstrap defaults
+    ADMIN_USER="${ADMIN_USER:-niko}"
+    BOOTSTRAP_MODE="${BOOTSTRAP_MODE:-false}"
+    OP_SSH_KEY_REF="${OP_SSH_KEY_REF:-op://Personal/SSH Key/public key}"
 }
 
 # Validate API key format

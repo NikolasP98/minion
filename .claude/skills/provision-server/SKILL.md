@@ -35,17 +35,18 @@ at `setup/setup.sh`.
 
 ### Phase Sequence
 
-| Phase | Name             | Purpose                                                    |
-| ----- | ---------------- | ---------------------------------------------------------- |
-| 00    | Preflight        | Validate environment, test SSH connectivity                |
-| 20    | User Creation    | Create agent user, directories, enable linger              |
-| 30    | Environment      | Install/verify Node.js, pnpm, gh CLI, build tools          |
-| 40    | Install          | Clone repo, checkout branch, pnpm install + build          |
-| 45    | Alias            | Create `~/.local/bin/minion` wrapper                       |
-| 50    | Config           | Render templates, deploy with correct permissions          |
-| 60    | Service          | Enable + start systemd user service                        |
-| 65    | Tailscale Funnel | Expose gateway + OAuth callback over public HTTPS (opt-in) |
-| 70    | Verification     | Health checks, deployment summary                          |
+| Phase | Name             | Purpose                                                             |
+| ----- | ---------------- | ------------------------------------------------------------------- |
+| 00    | Preflight        | Validate environment, test SSH connectivity                         |
+| 10    | VPS Bootstrap    | Fresh VPS setup: admin user, SSH hardening, Tailscale, service user |
+| 20    | User Creation    | Create agent user, directories, enable linger                       |
+| 30    | Environment      | Install/verify Node.js, pnpm, gh CLI, build tools                   |
+| 40    | Install          | Clone repo, checkout branch, pnpm install + build                   |
+| 45    | Alias            | Create `~/.local/bin/minion` wrapper                                |
+| 50    | Config           | Render templates, deploy with correct permissions                   |
+| 60    | Service          | Enable + start systemd user service                                 |
+| 65    | Tailscale Funnel | Expose gateway + OAuth callback over public HTTPS (opt-in)          |
+| 70    | Verification     | Health checks, deployment summary                                   |
 
 ### Server Config Files
 
@@ -59,19 +60,71 @@ Format:
   "id": "env-tenant-name",
   "host": "hostname-or-ip",
   "user": "minion-username",
+  "admin_user": "admin-username",
   "port": 22,
-  "deployment_path": "/home/username/minion",
+  "deployment_path": "/home/username/.minion",
   "platform": "linux/amd64",
   "gateway_port": 18789,
   "bridge_port": 18790,
   "tenant": "tenant-name",
   "region": "us-east",
-  "branch": "main",
-  "local_build": true
+  "local_build": false
 }
 ```
 
 ## Provisioning Workflow
+
+### Step 0: VPS Bootstrap (Fresh Servers Only)
+
+For brand-new VPS instances that only have root SSH access, run the bootstrap phase first.
+
+**Detection**: Try `ssh niko@<host> echo ok` — if it fails, bootstrap is needed.
+
+**Option A**: Standalone bootstrap wrapper:
+
+```bash
+bash setup/utilities/bootstrap-vps.sh \
+  --vps-hostname=<ip-or-hostname> \
+  --admin-user=niko \
+  --verbose
+```
+
+**Option B**: Bootstrap + full deploy in one command:
+
+```bash
+bash setup/setup.sh --bootstrap \
+  --vps-hostname=<host> \
+  --admin-user=niko \
+  --agent-name=<name> \
+  --api-key=<key> \
+  --verbose
+```
+
+**SSH key resolution** (in priority order):
+
+1. `--ssh-pubkey=<key>` — explicit key string
+2. `--ssh-pubkey-file=<path>` — path to public key file
+3. 1Password CLI — `op read "op://Personal/SSH Key/public key"` (default, requires `op` CLI)
+4. Override 1Password ref: `--op-ssh-key-ref=<ref>`
+
+**What Phase 10 does** (all idempotent):
+
+1. System update (apt full-upgrade)
+2. Base packages (curl, git, build-essential, ufw, fail2ban, jq, htop, tmux, rsync)
+3. Admin user creation with NOPASSWD sudo
+4. SSH key injection from local machine
+5. SSH hardening (safety gate: verifies key auth works before disabling passwords)
+6. Tailscale install + interactive auth (prints URL for login)
+7. Service user creation with scaffolded `~/.minion/` directories
+
+**Post-bootstrap verification**:
+
+```bash
+ssh niko@<host> sudo whoami    # → "root"
+ssh niko@<host> tailscale status  # → shows connected
+```
+
+**Safety note**: The SSH hardening step will NOT disable password auth until it confirms the admin user can authenticate via SSH key. If key auth fails, it aborts with a clear error.
 
 ### Step 1: Verify Connectivity
 
@@ -184,8 +237,16 @@ After provisioning, review the full output for improvement observations using th
 ### Modes
 
 - `--mode=remote` — Orchestrate via SSH (auto-detected when `--vps-hostname` is set)
+- `--bootstrap` — Run VPS bootstrap (Phase 10) before deployment phases
 - `--update` — Pull latest + rebuild existing install
 - `--decommission` — Stop services, free disk, preserve config
+
+### Bootstrap (Phase 10)
+
+- `--admin-user=USER` — Admin username to create (default: niko)
+- `--ssh-pubkey=KEY` — SSH public key string
+- `--ssh-pubkey-file=PATH` — Path to SSH public key file
+- `--op-ssh-key-ref=REF` — 1Password reference for SSH key (default: `op://Personal/SSH Key/public key`)
 
 ### Configuration
 

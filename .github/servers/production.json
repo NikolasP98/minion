@@ -35,6 +35,20 @@
       "local_build": false
     },
     {
+      "id": "prd-nicesrv",
+      "host": "v2202603342963439612.nicesrv.de",
+      "user": "bot-prd",
+      "admin_user": "niko",
+      "port": 22,
+      "deployment_path": "/home/bot-prd/.minion",
+      "platform": "linux/amd64",
+      "gateway_port": 18789,
+      "bridge_port": 18790,
+      "tenant": "nicesrv",
+      "region": "eu-west",
+      "local_build": false
+    },
+    {
       "id": "prd-protopi",
       "host": "protopi",
       "user": "minion",
