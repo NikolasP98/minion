@@ -98,9 +98,16 @@ export function generateState(): string {
 }
 
 /**
- * Add a pending OAuth flow
+ * Add a pending OAuth flow.
+ * Cancels any existing flow for the same session to enforce one-at-a-time.
  */
 export function addPendingFlow(flow: PendingOAuthFlow): void {
+  for (const [state, existing] of pendingFlows.entries()) {
+    if (existing.sessionKey === flow.sessionKey) {
+      log.info(`Cancelling previous auth flow for session ${flow.sessionKey} (state=${state})`);
+      pendingFlows.delete(state);
+    }
+  }
   pendingFlows.set(flow.state, flow);
 }
 
