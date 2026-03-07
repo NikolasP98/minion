@@ -7,15 +7,28 @@ import type { ChannelId, ChannelOutboundAdapter } from "../types.js";
 // The full channel plugins (src/channels/plugins/*.ts) pull in status,
 // onboarding, gateway monitors, etc. Outbound delivery only needs chunking +
 // send primitives, so we keep a dedicated, lightweight loader here.
-const cache = new Map<ChannelId, ChannelOutboundAdapter>();
-let lastRegistry: PluginRegistry | null = null;
+
+const OUTBOUND_CACHE_KEY = Symbol.for("minion.channelOutboundCache");
+
+type OutboundCacheState = {
+  cache: Map<ChannelId, ChannelOutboundAdapter>;
+  lastRegistry: PluginRegistry | null;
+};
+
+const state: OutboundCacheState = (() => {
+  const g = globalThis as typeof globalThis & { [OUTBOUND_CACHE_KEY]?: OutboundCacheState };
+  if (!g[OUTBOUND_CACHE_KEY]) {
+    g[OUTBOUND_CACHE_KEY] = { cache: new Map(), lastRegistry: null };
+  }
+  return g[OUTBOUND_CACHE_KEY];
+})();
 
 function ensureCacheForRegistry(registry: PluginRegistry | null) {
-  if (registry === lastRegistry) {
+  if (registry === state.lastRegistry) {
     return;
   }
-  cache.clear();
-  lastRegistry = registry;
+  state.cache.clear();
+  state.lastRegistry = registry;
 }
 
 export async function loadChannelOutboundAdapter(
@@ -23,14 +36,14 @@ export async function loadChannelOutboundAdapter(
 ): Promise<ChannelOutboundAdapter | undefined> {
   const registry = getActivePluginRegistry();
   ensureCacheForRegistry(registry);
-  const cached = cache.get(id);
+  const cached = state.cache.get(id);
   if (cached) {
     return cached;
   }
   const pluginEntry = registry?.channels.find((entry) => entry.plugin.id === id);
   const outbound = pluginEntry?.plugin.outbound;
   if (outbound) {
-    cache.set(id, outbound);
+    state.cache.set(id, outbound);
     return outbound;
   }
   return undefined;

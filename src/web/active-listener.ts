@@ -28,9 +28,20 @@ export type ActiveWebListener = {
   close?: () => Promise<void>;
 };
 
-let _currentListener: ActiveWebListener | null = null;
+const STATE_KEY = Symbol.for("minion.activeWebListeners");
 
-const listeners = new Map<string, ActiveWebListener>();
+type WebListenerState = {
+  listeners: Map<string, ActiveWebListener>;
+  currentListener: ActiveWebListener | null;
+};
+
+const state: WebListenerState = (() => {
+  const g = globalThis as typeof globalThis & { [STATE_KEY]?: WebListenerState };
+  if (!g[STATE_KEY]) {
+    g[STATE_KEY] = { listeners: new Map(), currentListener: null };
+  }
+  return g[STATE_KEY];
+})();
 
 export function resolveWebAccountId(accountId?: string | null): string {
   return (accountId ?? "").trim() || DEFAULT_ACCOUNT_ID;
@@ -41,7 +52,7 @@ export function requireActiveWebListener(accountId?: string | null): {
   listener: ActiveWebListener;
 } {
   const id = resolveWebAccountId(accountId);
-  const listener = listeners.get(id) ?? null;
+  const listener = state.listeners.get(id) ?? null;
   if (!listener) {
     throw new Error(
       `No active WhatsApp Web listener (account: ${id}). Start the gateway, then link WhatsApp with: ${formatCliCommand(`minion channels login --channel whatsapp --account ${id}`)}.`,
@@ -69,16 +80,16 @@ export function setActiveWebListener(
 
   const id = resolveWebAccountId(accountId);
   if (!listener) {
-    listeners.delete(id);
+    state.listeners.delete(id);
   } else {
-    listeners.set(id, listener);
+    state.listeners.set(id, listener);
   }
   if (id === DEFAULT_ACCOUNT_ID) {
-    _currentListener = listener;
+    state.currentListener = listener;
   }
 }
 
 export function getActiveWebListener(accountId?: string | null): ActiveWebListener | null {
   const id = resolveWebAccountId(accountId);
-  return listeners.get(id) ?? null;
+  return state.listeners.get(id) ?? null;
 }
