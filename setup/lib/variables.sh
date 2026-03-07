@@ -19,13 +19,16 @@ fi
 # Required in remote mode; some optional in local mode
 REQUIRED_REMOTE=(
     "VPS_HOSTNAME"
-    "ANTHROPIC_API_KEY"
 )
 
-# Always required regardless of mode
-REQUIRED_ALWAYS=(
+# LLM provider keys — at least one must be set
+LLM_PROVIDER_KEYS=(
     "ANTHROPIC_API_KEY"
+    "OPENROUTER_API_KEY"
 )
+
+# Always required regardless of mode (empty — provider key checked separately)
+REQUIRED_ALWAYS=()
 
 # Inferable variables (AI derives from conversation or set via profile)
 INFERABLE_FROM_CONVERSATION=(
@@ -92,6 +95,18 @@ validate_required_variables() {
                 $already || missing+=("$var")
             fi
         done
+    fi
+
+    # Check that at least one LLM provider key is set
+    local has_provider=false
+    for var in "${LLM_PROVIDER_KEYS[@]}"; do
+        if [ -n "${!var:-}" ]; then
+            has_provider=true
+            break
+        fi
+    done
+    if [ "$has_provider" = "false" ]; then
+        missing+=("ANTHROPIC_API_KEY or OPENROUTER_API_KEY")
     fi
 
     if [ ${#missing[@]} -gt 0 ]; then

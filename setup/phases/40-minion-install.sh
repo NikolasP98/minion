@@ -71,6 +71,7 @@ install_via_package() {
     if [ -z "$MINION_BIN" ]; then
         # Try known global bin paths
         local candidates=(
+            "${AGENT_HOME_DIR:-$HOME}/.local/bin/minion"
             "${AGENT_HOME_DIR:-$HOME}/.local/share/pnpm/minion"
             "${AGENT_HOME_DIR:-$HOME}/.bun/bin/minion"
             "/usr/local/bin/minion"

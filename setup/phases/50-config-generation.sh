@@ -145,18 +145,22 @@ generate_configuration() {
 
     # --- Generate auth-profiles.json for main agent ---
     log_info "Generating agent auth profile..."
-    cat > "$temp_dir/auth-profiles.json" << AUTHEOF
-{
-  "version": 1,
-  "profiles": {
-    "anthropic:manual": {
-      "type": "token",
-      "provider": "anthropic",
-      "token": "${ANTHROPIC_API_KEY}"
-    }
-  }
-}
-AUTHEOF
+    local profiles_json='{ "version": 1, "profiles": {'
+    local first_profile=true
+
+    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+        profiles_json+="\"anthropic:manual\": { \"type\": \"token\", \"provider\": \"anthropic\", \"token\": \"${ANTHROPIC_API_KEY}\" }"
+        first_profile=false
+    fi
+
+    if [ -n "${OPENROUTER_API_KEY:-}" ]; then
+        [ "$first_profile" = "false" ] && profiles_json+=","
+        profiles_json+="\"openrouter:manual\": { \"type\": \"token\", \"provider\": \"openrouter\", \"token\": \"${OPENROUTER_API_KEY}\" }"
+    fi
+
+    profiles_json+='}}'
+    echo "$profiles_json" | python3 -m json.tool > "$temp_dir/auth-profiles.json" 2>/dev/null \
+        || echo "$profiles_json" > "$temp_dir/auth-profiles.json"
 
     # --- Deploy files ---
     log_info "Deploying configuration files..."

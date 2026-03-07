@@ -83,7 +83,8 @@ Source Install (only with --install-method=source):
 Configuration:
     --profile=PROFILE       Load configuration from profile file
     --vps-hostname=HOST     VPS hostname or IP address (implies --mode=remote)
-    --api-key=KEY           Anthropic API key (required)
+    --api-key=KEY           Anthropic API key (at least one LLM provider key required)
+    --openrouter-key=KEY    OpenRouter API key (alternative to --api-key)
     --tailscale-key=KEY     Tailscale auth key
     --tailscale-funnel      Enable Tailscale Funnel (required for Google OAuth & public HTTPS callbacks)
     --github-pat=TOKEN      GitHub Personal Access Token
@@ -216,6 +217,9 @@ parse_args() {
                 ;;
             --api-key=*)
                 ANTHROPIC_API_KEY="${1#*=}"
+                ;;
+            --openrouter-key=*)
+                OPENROUTER_API_KEY="${1#*=}"
                 ;;
             --tailscale-key=*)
                 TAILSCALE_AUTH_KEY="${1#*=}"
@@ -501,8 +505,8 @@ BANNER
     # Prepend bootstrap phase when --bootstrap is set
     if [ "${BOOTSTRAP_MODE:-false}" = "true" ]; then
         phases=("00-preflight.sh" "10-vps-bootstrap.sh")
-        # If no API key provided, bootstrap-only (skip deployment phases)
-        if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+        # If no LLM provider key provided, bootstrap-only (skip deployment phases)
+        if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${OPENROUTER_API_KEY:-}" ]; then
             log_info "Bootstrap-only mode (no API key provided, skipping deployment phases)"
             for phase_script in "${phases[@]}"; do
                 execute_phase "${SCRIPT_DIR}/phases/${phase_script}"

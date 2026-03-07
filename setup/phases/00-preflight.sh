@@ -48,13 +48,15 @@ preflight_checks() {
             fi
         fi
 
-        # If API key is provided, also validate it (bootstrap + deploy)
+        # If a provider key is provided, also validate it (bootstrap + deploy)
         if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-            log_info "API key provided — will run bootstrap + deploy"
+            log_info "Anthropic API key provided — will run bootstrap + deploy"
             if ! validate_api_key "$ANTHROPIC_API_KEY" "anthropic"; then
                 handle_error 1 "Invalid Anthropic API key" "Preflight"
                 return 1
             fi
+        elif [ -n "${OPENROUTER_API_KEY:-}" ]; then
+            log_info "OpenRouter API key provided — will run bootstrap + deploy"
         fi
 
         display_config
@@ -70,9 +72,11 @@ preflight_checks() {
     fi
 
     log_info "Validating API key format..."
-    if ! validate_api_key "$ANTHROPIC_API_KEY" "anthropic"; then
-        handle_error 1 "Invalid Anthropic API key" "Preflight"
-        return 1
+    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+        if ! validate_api_key "$ANTHROPIC_API_KEY" "anthropic"; then
+            handle_error 1 "Invalid Anthropic API key" "Preflight"
+            return 1
+        fi
     fi
 
     if [ -n "${GITHUB_PAT:-}" ]; then
