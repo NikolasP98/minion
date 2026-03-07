@@ -61,21 +61,34 @@ async function sendOAuthNotification(notification: OAuthNotification): Promise<v
   log.info(`Routing OAuth notification to ${channel}:${to}`);
 
   const cfg = loadConfig();
-  const result = await routeReply({
-    payload: { text: notification.message },
-    channel,
-    to,
-    sessionKey: notification.sessionKey,
-    accountId,
-    threadId,
-    cfg,
-  });
+  const maxAttempts = 3;
 
-  if (!result.ok) {
-    log.error(`OAuth notification delivery failed: ${result.error ?? "unknown error"}`);
-  } else {
-    log.info(`OAuth notification delivered to ${channel}:${to}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = await routeReply({
+      payload: { text: notification.message },
+      channel,
+      to,
+      sessionKey: notification.sessionKey,
+      accountId,
+      threadId,
+      cfg,
+    });
+
+    if (result.ok) {
+      log.info(`OAuth notification delivered to ${channel}:${to}`);
+      return;
+    }
+
+    log.warn(
+      `OAuth notification attempt ${attempt}/${maxAttempts} failed: ${result.error ?? "unknown error"}`,
+    );
+
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt - 1)));
+    }
   }
+
+  log.error(`OAuth notification delivery failed after ${maxAttempts} attempts`);
 }
 
 /**
