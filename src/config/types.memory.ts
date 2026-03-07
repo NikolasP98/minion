@@ -42,6 +42,7 @@ export type MemoryQmdUpdateConfig = {
   commandTimeoutMs?: number;
   updateTimeoutMs?: number;
   embedTimeoutMs?: number;
+  embedConcurrency?: number;
 };
 
 export type MemoryQmdLimitsConfig = {

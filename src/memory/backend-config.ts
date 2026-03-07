@@ -35,6 +35,7 @@ export type ResolvedQmdUpdateConfig = {
   commandTimeoutMs: number;
   updateTimeoutMs: number;
   embedTimeoutMs: number;
+  embedConcurrency: number;
 };
 
 export type ResolvedQmdLimitsConfig = {
@@ -73,6 +74,7 @@ const DEFAULT_QMD_EMBED_INTERVAL = "60m";
 const DEFAULT_QMD_COMMAND_TIMEOUT_MS = 30_000;
 const DEFAULT_QMD_UPDATE_TIMEOUT_MS = 120_000;
 const DEFAULT_QMD_EMBED_TIMEOUT_MS = 120_000;
+const DEFAULT_QMD_EMBED_CONCURRENCY = 2;
 const DEFAULT_QMD_LIMITS: ResolvedQmdLimitsConfig = {
   maxResults: 6,
   maxSnippetChars: 700,
@@ -305,6 +307,7 @@ export function resolveMemoryBackendConfig(params: {
         qmdCfg?.update?.embedTimeoutMs,
         DEFAULT_QMD_EMBED_TIMEOUT_MS,
       ),
+      embedConcurrency: qmdCfg?.update?.embedConcurrency ?? DEFAULT_QMD_EMBED_CONCURRENCY,
     },
     limits: resolveLimits(qmdCfg?.limits),
     scope: qmdCfg?.scope ?? DEFAULT_QMD_SCOPE,

@@ -248,6 +248,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Timeout for QMD maintenance commands like collection list/add (default: 30000).",
   "memory.qmd.update.updateTimeoutMs": "Timeout for `qmd update` runs (default: 120000).",
   "memory.qmd.update.embedTimeoutMs": "Timeout for `qmd embed` runs (default: 120000).",
+  "memory.qmd.update.embedConcurrency":
+    "Max concurrent `qmd embed` processes across all agents (default: 2).",
   "memory.qmd.limits.maxResults": "Max QMD results returned to the agent loop (default: 6).",
   "memory.qmd.limits.maxSnippetChars": "Max characters per snippet pulled from QMD (default: 700).",
   "memory.qmd.limits.maxInjectedChars": "Max total characters injected from QMD hits per turn.",

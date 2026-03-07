@@ -25,6 +25,7 @@ import { deriveQmdScopeChannel, deriveQmdScopeChatType, isQmdScopeAllowed } from
 
 type SqliteDatabase = import("node:sqlite").DatabaseSync;
 import type { ResolvedMemoryBackendConfig, ResolvedQmdConfig } from "../backend-config.js";
+import { acquireEmbedSlot } from "./qmd-embed-semaphore.js";
 import { parseQmdQueryJson, type QmdQueryResult } from "./qmd-query-parser.js";
 
 const log = createSubsystemLogger("memory");
@@ -612,11 +613,17 @@ export class QmdMemoryManager implements MemorySearchManager {
         this.lastEmbedAt === null ||
         (embedIntervalMs > 0 && Date.now() - this.lastEmbedAt > embedIntervalMs);
       if (shouldEmbed) {
+        const releaseSlot = await acquireEmbedSlot(this.agentId);
         try {
+          log.info(`qmd embed starting for "${this.agentId}" (reason: ${reason})`);
+          const t0 = Date.now();
           await this.runQmd(["embed"], { timeoutMs: this.qmd.update.embedTimeoutMs });
           this.lastEmbedAt = Date.now();
+          log.info(`qmd embed completed for "${this.agentId}" in ${Date.now() - t0}ms`);
         } catch (err) {
-          log.warn(`qmd embed failed (${reason}): ${String(err)}`);
+          log.warn(`qmd embed failed for "${this.agentId}" (${reason}): ${String(err)}`);
+        } finally {
+          releaseSlot();
         }
       }
       this.lastUpdateAt = Date.now();
