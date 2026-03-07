@@ -53,6 +53,8 @@ export type ChannelPlugin<ResolvedAccount = any, Probe = unknown, Audit = unknow
     queue?: {
       debounceMs?: number;
     };
+    /** Delay (ms) between starting successive accounts to avoid rate limits. */
+    startupStaggerMs?: number;
   };
   reload?: { configPrefixes: string[]; noopPrefixes?: string[] };
   // CLI onboarding wizard hooks for this channel.

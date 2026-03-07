@@ -237,6 +237,19 @@ const coreEntries: CoreCliEntry[] = [
       mod.registerToolsCli(program);
     },
   },
+  {
+    commands: [
+      {
+        name: "channel",
+        description: "Manage channel accounts and configuration",
+        hasSubcommands: true,
+      },
+    ],
+    register: async ({ program }) => {
+      const mod = await import("./register.channel.js");
+      mod.registerChannelCommands(program);
+    },
+  },
 ];
 
 function collectCoreCliCommandNames(predicate?: (command: CoreCliCommandDescriptor) => boolean) {

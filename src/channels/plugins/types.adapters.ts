@@ -63,6 +63,8 @@ export type ChannelConfigAdapter<ResolvedAccount> = {
     accountId?: string | null;
     allowFrom: Array<string | number>;
   }) => string[];
+  /** Delay (ms) between starting successive accounts to avoid rate limits. */
+  resolveStartupStaggerMs?: (cfg: MinionConfig) => number | undefined;
 };
 
 export type ChannelGroupAdapter = {

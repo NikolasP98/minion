@@ -218,4 +218,6 @@ export type DiscordAccountConfig = {
 export type DiscordConfig = {
   /** Optional per-account Discord configuration (multi-account). */
   accounts?: Record<string, DiscordAccountConfig>;
+  /** Delay (ms) between starting successive bot accounts (default: 2000). */
+  startupStaggerMs?: number;
 } & DiscordAccountConfig;

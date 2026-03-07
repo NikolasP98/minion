@@ -165,11 +165,21 @@ export async function probeDiscord(
   }
 }
 
-export async function fetchDiscordApplicationId(
+const appIdInflight = new Map<string, Promise<string | undefined>>();
+
+export function fetchDiscordApplicationId(
   token: string,
   timeoutMs: number,
   fetcher: typeof fetch = fetch,
 ): Promise<string | undefined> {
-  const json = await fetchDiscordApplicationMe(token, timeoutMs, fetcher);
-  return json?.id ?? undefined;
+  const cacheKey = normalizeDiscordToken(token) ?? token;
+  const existing = appIdInflight.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+  const promise = fetchDiscordApplicationMe(token, timeoutMs, fetcher)
+    .then((json) => json?.id ?? undefined)
+    .finally(() => appIdInflight.delete(cacheKey));
+  appIdInflight.set(cacheKey, promise);
+  return promise;
 }

@@ -73,3 +73,15 @@ export function listEnabledDiscordAccounts(cfg: OpenClawConfig): ResolvedDiscord
     .map((accountId) => resolveDiscordAccount({ cfg, accountId }))
     .filter((account) => account.enabled);
 }
+
+const DEFAULT_STARTUP_STAGGER_MS = 2000;
+
+export function resolveDiscordStartupStaggerMs(cfg: OpenClawConfig): number | undefined {
+  const raw = cfg.channels?.discord?.startupStaggerMs;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) {
+    return raw;
+  }
+  // Default stagger when multiple accounts are configured.
+  const accountCount = listDiscordAccountIds(cfg).length;
+  return accountCount > 1 ? DEFAULT_STARTUP_STAGGER_MS : undefined;
+}

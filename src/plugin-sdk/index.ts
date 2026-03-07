@@ -336,6 +336,7 @@ export {
   listDiscordAccountIds,
   resolveDefaultDiscordAccountId,
   resolveDiscordAccount,
+  resolveDiscordStartupStaggerMs,
   type ResolvedDiscordAccount,
 } from "../channels/impl/discord/accounts.js";
 export { collectDiscordAuditChannelIds } from "../channels/impl/discord/audit.js";

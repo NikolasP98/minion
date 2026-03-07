@@ -138,8 +138,11 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
       return;
     }
 
-    await Promise.all(
-      accountIds.map(async (id) => {
+    const staggerMs =
+      plugin.config.resolveStartupStaggerMs?.(cfg) ?? plugin.defaults?.startupStaggerMs ?? 0;
+    let startedCount = 0;
+    for (const id of accountIds) {
+      await (async (id) => {
         if (store.tasks.has(id)) {
           return;
         }
@@ -263,8 +266,12 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
             }
           });
         store.tasks.set(id, trackedPromise);
-      }),
-    );
+        startedCount++;
+        if (staggerMs > 0 && startedCount < accountIds.length) {
+          await new Promise((r) => setTimeout(r, staggerMs));
+        }
+      })(id);
+    }
   };
 
   const startChannel = async (channelId: ChannelId, accountId?: string) => {
