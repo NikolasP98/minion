@@ -41,6 +41,7 @@ export function createGatewayReloadHandlers(params: {
   setState: (state: GatewayHotReloadState) => void;
   startChannel: (name: ChannelKind) => Promise<void>;
   stopChannel: (name: ChannelKind) => Promise<void>;
+  getChannelStatusPayload?: () => Promise<Record<string, unknown>>;
   logHooks: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -122,6 +123,15 @@ export function createGatewayReloadHandlers(params: {
         };
         for (const channel of plan.restartChannels) {
           await restartChannel(channel);
+        }
+        // Broadcast updated channel status to all connected clients
+        if (params.getChannelStatusPayload) {
+          try {
+            const payload = await params.getChannelStatusPayload();
+            params.broadcast("channels.status", payload, { dropIfSlow: true });
+          } catch (err) {
+            params.logChannels.error(`failed to broadcast channels.status: ${String(err)}`);
+          }
         }
       }
     }

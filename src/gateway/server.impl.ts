@@ -78,6 +78,7 @@ import { startGatewaySidecars } from "./server-core/server-startup.js";
 import { startGatewayTailscaleExposure } from "./server-core/server-tailscale.js";
 import { createWizardSessionTracker } from "./server-core/server-wizard-sessions.js";
 import { attachGatewayWsHandlers } from "./server-core/server-ws-runtime.js";
+import { buildChannelStatusPayload } from "./server-methods/channels.js";
 import { createExecApprovalHandlers } from "./server-methods/exec-approval.js";
 import { safeParseJson } from "./server-methods/nodes.helpers.js";
 import {
@@ -730,6 +731,7 @@ export async function startGatewayServer(
           },
           startChannel,
           stopChannel,
+          getChannelStatusPayload: () => buildChannelStatusPayload({ getRuntimeSnapshot }),
           logHooks,
           logBrowser,
           logChannels,
