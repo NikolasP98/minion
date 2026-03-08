@@ -63,6 +63,7 @@ type ChannelManagerOptions = {
   loadConfig: () => OpenClawConfig;
   channelLogs: Record<ChannelId, SubsystemLogger>;
   channelRuntimeEnvs: Record<ChannelId, RuntimeEnv>;
+  onStatusChange?: () => void;
 };
 
 type StartChannelOptions = {
@@ -84,6 +85,19 @@ export type ChannelManager = {
 export function createChannelManager(opts: ChannelManagerOptions): ChannelManager {
   const { loadConfig, channelLogs, channelRuntimeEnvs } = opts;
   const lifecycleLog = createSubsystemLogger("channels/lifecycle");
+
+  let statusChangeTimer: ReturnType<typeof setTimeout> | undefined;
+  const debouncedStatusChange = opts.onStatusChange
+    ? () => {
+        if (statusChangeTimer) {
+          clearTimeout(statusChangeTimer);
+        }
+        statusChangeTimer = setTimeout(() => {
+          statusChangeTimer = undefined;
+          opts.onStatusChange!();
+        }, 500);
+      }
+    : undefined;
 
   const channelStores = new Map<ChannelId, ChannelRuntimeStore>();
   // Tracks restart attempts per channel:account. Reset on successful start.
@@ -117,6 +131,7 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
     const current = getRuntime(channelId, accountId);
     const next = { ...current, ...patch, accountId };
     store.runtimes.set(accountId, next);
+    debouncedStatusChange?.();
     return next;
   };
 

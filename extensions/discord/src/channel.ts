@@ -324,6 +324,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
     defaultRuntime: {
       accountId: DEFAULT_ACCOUNT_ID,
       running: false,
+      connected: false,
       lastStartAt: null,
       lastStopAt: null,
       lastError: null,
@@ -434,6 +435,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
         abortSignal: ctx.abortSignal,
         mediaMaxMb: account.config.mediaMaxMb,
         historyLimit: account.config.historyLimit,
+        setStatus: (next) => ctx.setStatus({ accountId: account.accountId, ...next }),
       });
     },
   },

@@ -461,6 +461,13 @@ export async function startGatewayServer(
     loadConfig,
     channelLogs,
     channelRuntimeEnvs,
+    onStatusChange: () => {
+      void buildChannelStatusPayload({ getRuntimeSnapshot })
+        .then((payload) => {
+          broadcast("channels.status", payload, { dropIfSlow: true });
+        })
+        .catch(() => {});
+    },
   });
   const { getRuntimeSnapshot, startChannels, startChannel, stopChannel, markChannelLoggedOut } =
     channelManager;

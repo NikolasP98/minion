@@ -1,11 +1,5 @@
-import type { EventLogEntry } from "./app-events.ts";
-import type { OpenClawApp } from "./app.ts";
-import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
-import type { GatewayEventFrame, GatewayHelloOk } from "./gateway.ts";
-import type { Tab } from "./navigation.ts";
-import type { UiSettings } from "./storage.ts";
-import type { AgentsListResult, PresenceEntry, HealthSnapshot, StatusSummary } from "./types.ts";
 import { CHAT_SESSIONS_ACTIVE_MINUTES, flushChatQueueForEvent } from "./app-chat.ts";
+import type { EventLogEntry } from "./app-events.ts";
 import {
   applySettings,
   loadCron,
@@ -13,11 +7,13 @@ import {
   setLastActiveSessionKey,
 } from "./app-settings.ts";
 import { handleAgentEvent, resetToolStream, type AgentEventPayload } from "./app-tool-stream.ts";
+import type { OpenClawApp } from "./app.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import { handleChatEvent, type ChatEventPayload } from "./controllers/chat.ts";
 import { loadDevices } from "./controllers/devices.ts";
+import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import {
   addExecApproval,
   parseExecApprovalRequested,
@@ -26,7 +22,17 @@ import {
 } from "./controllers/exec-approval.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadSessions } from "./controllers/sessions.ts";
+import type { GatewayEventFrame, GatewayHelloOk } from "./gateway.ts";
 import { GatewayBrowserClient } from "./gateway.ts";
+import type { Tab } from "./navigation.ts";
+import type { UiSettings } from "./storage.ts";
+import type {
+  AgentsListResult,
+  ChannelsStatusSnapshot,
+  PresenceEntry,
+  HealthSnapshot,
+  StatusSummary,
+} from "./types.ts";
 
 type GatewayHost = {
   settings: UiSettings;
@@ -239,6 +245,17 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
       host.presenceEntries = payload.presence;
       host.presenceError = null;
       host.presenceStatus = null;
+    }
+    return;
+  }
+
+  if (evt.event === "channels.status") {
+    const payload = evt.payload as ChannelsStatusSnapshot | null;
+    if (payload) {
+      (host as unknown as { channelsSnapshot: ChannelsStatusSnapshot | null }).channelsSnapshot =
+        payload;
+      (host as unknown as { channelsLastSuccess: number | null }).channelsLastSuccess = Date.now();
+      (host as unknown as { channelsError: string | null }).channelsError = null;
     }
     return;
   }

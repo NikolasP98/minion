@@ -31,6 +31,7 @@ import { formatErrorMessage } from "../../../../infra/errors.js";
 import { createDiscordRetryRunner } from "../../../../infra/retry-policy.js";
 import { createSubsystemLogger } from "../../../../logging/subsystem.js";
 import { createNonExitingRuntime, type RuntimeEnv } from "../../../../runtime.js";
+import type { ChannelAccountSnapshot } from "../../../plugins/types.js";
 import { resolveDiscordAccount } from "../accounts.js";
 import { attachDiscordGatewayLogging } from "../gateway-logging.js";
 import { getDiscordGatewayEmitter, waitForDiscordGatewayStop } from "../monitor.gateway.js";
@@ -76,6 +77,7 @@ export type MonitorDiscordOpts = {
   mediaMaxMb?: number;
   historyLimit?: number;
   replyToMode?: ReplyToMode;
+  setStatus?: (next: Partial<ChannelAccountSnapshot>) => void;
 };
 
 function summarizeAllowList(list?: string[]) {
@@ -604,6 +606,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   );
 
   runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
+  opts.setStatus?.({ accountId: account.accountId, connected: true });
   lifecycleLog.info(
     `provider ready: ${account.accountId} botUserId=${botUserId ?? "unknown"} listeners=${listenerTypes.length}`,
     { accountId: account.accountId, botUserId: botUserId ?? null, listeners: listenerTypes.length },
@@ -684,6 +687,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       },
     });
   } finally {
+    opts.setStatus?.({ accountId: account.accountId, connected: false });
     unregisterGateway(account.accountId);
     stopGatewayLogging();
     if (helloTimeoutId) {
