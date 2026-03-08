@@ -96,7 +96,10 @@ export const whatsappPlugin: ChannelPlugin<ResolvedWhatsAppAccount> = {
         },
       };
     },
-    isEnabled: (account, cfg) => account.enabled && cfg.web?.enabled !== false,
+    isEnabled: (account, cfg) => {
+      if (cfg.channels?.whatsapp?.enabled === false) return false;
+      return account.enabled !== false && cfg.web?.enabled !== false;
+    },
     disabledReason: () => "disabled",
     isConfigured: async (account) =>
       await getWhatsAppRuntime().channel.whatsapp.webAuthExists(account.authDir),

@@ -56,6 +56,8 @@ export type WhatsAppStatusReactionConfig = {
 };
 
 export type WhatsAppConfig = {
+  /** If false, disable the entire WhatsApp channel (killswitch). Default: true. */
+  enabled?: boolean;
   /** Optional per-account WhatsApp configuration (multi-account). */
   accounts?: Record<string, WhatsAppAccountConfig>;
   /** Optional provider capability tags used for agent/runtime guidance. */
