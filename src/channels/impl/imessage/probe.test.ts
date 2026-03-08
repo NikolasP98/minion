@@ -9,7 +9,7 @@ vi.mock("../../../cli/commands/onboard-helpers.js", () => ({
   detectBinary: (...args: unknown[]) => detectBinaryMock(...args),
 }));
 
-vi.mock("../../../auto-reply/reply/exec.js", () => ({
+vi.mock("../../../platform/process/exec.js", () => ({
   runCommandWithTimeout: (...args: unknown[]) => runCommandWithTimeoutMock(...args),
 }));
 

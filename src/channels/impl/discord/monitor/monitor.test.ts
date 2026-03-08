@@ -59,7 +59,7 @@ vi.mock("../../../../pairing/pairing-store.js", () => ({
   upsertChannelPairingRequest: (...args: unknown[]) => upsertPairingRequestMock(...args),
 }));
 
-vi.mock("./system-events.js", async (importOriginal) => {
+vi.mock("../../../../infra/system-events.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../../infra/system-events.js")>();
   return {
     ...actual,

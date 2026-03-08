@@ -11,7 +11,7 @@ const offsetMocks = vi.hoisted(() => ({
   deleteTelegramUpdateOffset: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../../hooks/config.js", async (importOriginal) => {
+vi.mock("../../config/config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../config/config.js")>();
   return {
     ...actual,

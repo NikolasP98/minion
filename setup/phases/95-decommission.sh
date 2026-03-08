@@ -79,11 +79,13 @@ decommission_deployment() {
         run_cmd --as root "chmod 700 '${config_dir}/credentials'"
     fi
 
-    # 8. Keep minion.json locked down
-    log_info "Preserving minion.json permissions (600)..."
-    if run_cmd --as "$exec_user" "test -f '${config_dir}/minion.json'" 2>/dev/null; then
-        run_cmd --as root "chmod 600 '${config_dir}/minion.json'"
-    fi
+    # 8. Keep gateway config locked down
+    log_info "Preserving gateway config permissions (600)..."
+    for cfg_name in gateway.json minion.json; do
+        if run_cmd --as "$exec_user" "test -f '${config_dir}/${cfg_name}'" 2>/dev/null; then
+            run_cmd --as root "chmod 600 '${config_dir}/${cfg_name}'"
+        fi
+    done
 
     # 9. Write decommissioned marker
     local timestamp

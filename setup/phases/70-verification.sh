@@ -73,7 +73,9 @@ verify_deployment() {
     # Check configuration file permissions
     log_info "Checking configuration file permissions..."
     local config_perms
-    config_perms=$(run_cmd --as "$exec_user" "stat -c '%a' '${config_dir}/minion.json'" 2>/dev/null || echo "unknown")
+    config_perms=$(run_cmd --as "$exec_user" "stat -c '%a' '${config_dir}/gateway.json'" 2>/dev/null \
+        || run_cmd --as "$exec_user" "stat -c '%a' '${config_dir}/minion.json'" 2>/dev/null \
+        || echo "unknown")
 
     if [ "$config_perms" = "600" ]; then
         log_success "Configuration file permissions are correct (600)"

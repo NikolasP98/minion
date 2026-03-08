@@ -34,7 +34,7 @@ vi.mock("../../platform/daemon/service-audit.js", () => ({
   },
 }));
 
-vi.mock("../../platform/cron/service.js", () => ({
+vi.mock("../../platform/daemon/service.js", () => ({
   resolveGatewayService: () => ({
     readCommand: mocks.readCommand,
     install: mocks.install,

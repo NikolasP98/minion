@@ -3,7 +3,7 @@
 # name: "Configuration Generation"
 # phase: 50
 # description: >
-#   Renders configuration templates (minion.json, systemd service, SOUL.md)
+#   Renders configuration templates (gateway.json, systemd service, SOUL.md)
 #   with environment variable values. Validates JSON syntax. Deploys config
 #   files to their final locations with correct ownership and permissions.
 # when: >
@@ -13,7 +13,7 @@
 #   - "Phase 45 (alias setup) completed"
 #   - "All configuration variables set"
 # produces:
-#   - "~/.minion/minion.json (mode 600)"
+#   - "~/.minion/gateway.json (mode 600)"
 #   - "~/.minion/workspace/SOUL.md"
 #   - "~/.config/systemd/user/minion-gateway.service"
 # flags:
@@ -105,23 +105,23 @@ generate_configuration() {
     export DEPLOYMENT_DATE DEPLOYMENT_ENVIRONMENT MINION_VERSION GATEWAY_BIND
     export AGENT_PERSONALITY AGENT_RESPONSIBILITIES COMMUNICATION_STYLE DOMAIN_KNOWLEDGE
 
-    # --- Render minion.json ---
-    log_info "Rendering minion.json configuration..."
-    if ! render_template "${SCRIPT_DIR}/../templates/minion.json.template" "$temp_dir/minion.json"; then
-        handle_error $? "Failed to render minion.json" "Configuration Generation"
+    # --- Render gateway.json ---
+    log_info "Rendering gateway.json configuration..."
+    if ! render_template "${SCRIPT_DIR}/../templates/gateway.json.template" "$temp_dir/gateway.json"; then
+        handle_error $? "Failed to render gateway.json" "Configuration Generation"
         return 1
     fi
 
     log_info "Validating rendered configuration..."
-    if ! validate_template "$temp_dir/minion.json"; then
+    if ! validate_template "$temp_dir/gateway.json"; then
         handle_error $? "Configuration validation failed" "Configuration Generation"
         return 1
     fi
 
     # Validate JSON syntax (if jq available)
     if command -v jq &> /dev/null; then
-        if ! jq empty "$temp_dir/minion.json" 2>/dev/null; then
-            log_error "Invalid JSON in rendered minion.json"
+        if ! jq empty "$temp_dir/gateway.json" 2>/dev/null; then
+            log_error "Invalid JSON in rendered gateway.json"
             handle_error 1 "Invalid JSON configuration" "Configuration Generation"
             return 1
         fi
@@ -189,30 +189,41 @@ generate_configuration() {
     local workspace_dir="${WORKSPACE_DIR:-${config_dir}/workspace}"
     local systemd_dir="${AGENT_HOME_DIR:-$HOME}/.config/systemd/user"
 
-    # Backup existing config before overwriting
-    local existing_config="${config_dir}/minion.json"
-    if [ "${EXEC_MODE:-local}" = "remote" ]; then
-        if run_cmd "test -f '${existing_config}'" 2>/dev/null; then
-            local backup_path="${existing_config}.$(date +%Y%m%d%H%M%S).bak"
-            log_info "Backing up existing config to ${backup_path}"
-            run_cmd "cp '${existing_config}' '${backup_path}'"
+    # Backup existing config before overwriting (check canonical + legacy names)
+    local existing_config=""
+    for candidate in "${config_dir}/gateway.json" "${config_dir}/minion.json"; do
+        if [ "${EXEC_MODE:-local}" = "remote" ]; then
+            if run_cmd "test -f '${candidate}'" 2>/dev/null; then
+                existing_config="$candidate"
+                break
+            fi
+        else
+            if [ -f "${candidate}" ]; then
+                existing_config="$candidate"
+                break
+            fi
         fi
-    else
-        if [ -f "${existing_config}" ]; then
-            local backup_path="${existing_config}.$(date +%Y%m%d%H%M%S).bak"
-            log_info "Backing up existing config to ${backup_path}"
+    done
+    if [ -n "$existing_config" ]; then
+        local backup_path="${existing_config}.$(date +%Y%m%d%H%M%S).bak"
+        log_info "Backing up existing config to ${backup_path}"
+        if [ "${EXEC_MODE:-local}" = "remote" ]; then
+            run_cmd "cp '${existing_config}' '${backup_path}'"
+        else
             cp "${existing_config}" "${backup_path}"
         fi
     fi
 
+    local agent_name="${AGENT_NAME:-minion}"
+
     if [ "${EXEC_MODE:-local}" = "remote" ]; then
         # Remote: SCP files to staging dir, then place + permission in one batch
         local remote_tmp="/tmp/minion-deploy-$$"
-        local agent_auth_dir="${config_dir}/agents/main/agent"
+        local agent_auth_dir="${config_dir}/agents/${agent_name}/agent"
 
         run_cmd --as root "mkdir -p '$remote_tmp'"
 
-        copy_file "$temp_dir/minion.json" "$remote_tmp/minion.json" root
+        copy_file "$temp_dir/gateway.json" "$remote_tmp/gateway.json" root
         copy_file "$temp_dir/minion-gateway.service" "$remote_tmp/minion-gateway.service" root
         copy_file "$temp_dir/SOUL.md" "$remote_tmp/SOUL.md" root
         copy_file "$temp_dir/auth-profiles.json" "$remote_tmp/auth-profiles.json" root
@@ -220,30 +231,30 @@ generate_configuration() {
         # Batch all cp/chown/chmod into a single SSH call
         run_cmd --as root "
             mkdir -p '${agent_auth_dir}' &&
-            mkdir -p '${config_dir}/agents/main/KG' &&
-            cp '$remote_tmp/minion.json' '${config_dir}/minion.json' &&
+            mkdir -p '${config_dir}/agents/${agent_name}/KG' &&
+            cp '$remote_tmp/gateway.json' '${config_dir}/gateway.json' &&
             cp '$remote_tmp/SOUL.md' '${workspace_dir}/SOUL.md' &&
             cp '$remote_tmp/minion-gateway.service' '${systemd_dir}/minion-gateway.service' &&
             cp '$remote_tmp/auth-profiles.json' '${agent_auth_dir}/auth-profiles.json' &&
-            chown ${exec_user}:${exec_user} '${config_dir}/minion.json' '${workspace_dir}/SOUL.md' '${systemd_dir}/minion-gateway.service' &&
+            chown ${exec_user}:${exec_user} '${config_dir}/gateway.json' '${workspace_dir}/SOUL.md' '${systemd_dir}/minion-gateway.service' &&
             chown -R ${exec_user}:${exec_user} '${config_dir}/agents' &&
-            chmod 600 '${config_dir}/minion.json' '${agent_auth_dir}/auth-profiles.json' &&
+            chmod 600 '${config_dir}/gateway.json' '${agent_auth_dir}/auth-profiles.json' &&
             chmod 644 '${workspace_dir}/SOUL.md' '${systemd_dir}/minion-gateway.service' &&
             rm -rf '$remote_tmp'
         "
     else
         # Local: copy directly
-        cp "$temp_dir/minion.json" "${config_dir}/minion.json"
+        cp "$temp_dir/gateway.json" "${config_dir}/gateway.json"
         cp "$temp_dir/SOUL.md" "${workspace_dir}/SOUL.md"
         cp "$temp_dir/minion-gateway.service" "${systemd_dir}/minion-gateway.service"
 
-        chmod 600 "${config_dir}/minion.json"
+        chmod 600 "${config_dir}/gateway.json"
         chmod 644 "${workspace_dir}/SOUL.md"
         chmod 644 "${systemd_dir}/minion-gateway.service"
 
-        local agent_auth_dir="${config_dir}/agents/main/agent"
+        local agent_auth_dir="${config_dir}/agents/${agent_name}/agent"
         mkdir -p "${agent_auth_dir}"
-        mkdir -p "${config_dir}/agents/main/KG"
+        mkdir -p "${config_dir}/agents/${agent_name}/KG"
         cp "$temp_dir/auth-profiles.json" "${agent_auth_dir}/auth-profiles.json"
         chmod 600 "${agent_auth_dir}/auth-profiles.json"
     fi
@@ -254,7 +265,6 @@ generate_configuration() {
     log_success "Configuration files deployed successfully"
 
     # --- Create per-agent config for initial agent ---
-    local agent_name="${AGENT_NAME:-minion}"
     local per_agent_config_dir="${config_dir}/agents/${agent_name}"
     local per_agent_config="${per_agent_config_dir}/minion.json"
     if [ "${EXEC_MODE:-local}" = "remote" ]; then

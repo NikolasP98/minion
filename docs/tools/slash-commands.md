@@ -103,6 +103,9 @@ Text + native (when enabled):
 - `/model <name>` (alias: `/models`; or `/<alias>` from `agents.defaults.models.*.alias`)
 - `/queue <mode>` (plus options like `debounce:2s cap:25 drop:summarize`; send `/queue` to see current settings)
 - `/bash <command>` (host-only; alias for `! <command>`; requires `commands.bash: true` + `tools.elevated` allowlists)
+- `/gateway status|health|sessions|version` (gateway management)
+- `/team` (show team information)
+- `/test` (test command connectivity)
 
 Text-only:
 

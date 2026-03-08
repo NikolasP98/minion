@@ -10,7 +10,7 @@ vi.mock("../../../../media/store.js", () => ({
   saveMediaBuffer: (...args: unknown[]) => saveMediaBuffer(...args),
 }));
 
-vi.mock("../fetch.js", () => ({
+vi.mock("../../../../media/fetch.js", () => ({
   fetchRemoteMedia: (...args: unknown[]) => fetchRemoteMedia(...args),
 }));
 

@@ -22,7 +22,7 @@ const { killProcessTreeMock } = vi.hoisted(() => ({
   killProcessTreeMock: vi.fn(),
 }));
 
-vi.mock("../index.js", () => ({
+vi.mock("../../platform/process/supervisor/index.js", () => ({
   getProcessSupervisor: () => supervisorMock,
 }));
 

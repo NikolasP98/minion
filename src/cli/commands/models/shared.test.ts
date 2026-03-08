@@ -6,10 +6,14 @@ const mocks = vi.hoisted(() => ({
   writeConfigFile: vi.fn(),
 }));
 
-vi.mock("../../../hooks/config.js", () => ({
-  readConfigFileSnapshot: (...args: unknown[]) => mocks.readConfigFileSnapshot(...args),
-  writeConfigFile: (...args: unknown[]) => mocks.writeConfigFile(...args),
-}));
+vi.mock("../../../config/config.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../config/config.js")>();
+  return {
+    ...actual,
+    readConfigFileSnapshot: (...args: unknown[]) => mocks.readConfigFileSnapshot(...args),
+    writeConfigFile: (...args: unknown[]) => mocks.writeConfigFile(...args),
+  };
+});
 
 import { loadValidConfigOrThrow, updateConfig } from "./shared.js";
 

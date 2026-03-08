@@ -63,7 +63,7 @@ function loadBundledMemoryPluginRegistry(options?: {
           name: options.packageMeta.name,
           version: options.packageMeta.version,
           description: options.packageMeta.description,
-          minion: { extensions: ["../index.js"] },
+          minion: { extensions: ["./index.js"] },
         },
         null,
         2,

@@ -183,7 +183,7 @@ describe("discoverMinionPlugins", () => {
       path.join(packDir, "package.json"),
       JSON.stringify({
         name: "@minion/demo-plugin-dir",
-        minion: { extensions: ["../index.js"] },
+        minion: { extensions: ["./index.js"] },
       }),
       "utf-8",
     );

@@ -26,7 +26,7 @@ const modelRegistryState = {
 };
 let previousExitCode: typeof process.exitCode;
 
-vi.mock("../../hooks/config.js", () => ({
+vi.mock("../../config/config.js", () => ({
   CONFIG_PATH: "/tmp/openclaw.json",
   STATE_DIR: "/tmp/openclaw-state",
   loadConfig,
@@ -88,7 +88,7 @@ vi.mock("../../agents/models/pi-model-discovery.js", () => {
   };
 });
 
-vi.mock("../../auto-reply/model.js", () => ({
+vi.mock("../../agents/pi-embedded-runner/model.js", () => ({
   resolveModel: () => {
     throw new Error("resolveModel should not be called from models.list tests");
   },

@@ -3,7 +3,7 @@ import { listChannelPlugins } from "../../../channels/plugins/index.js";
 import type { ChannelPlugin } from "../../../channels/plugins/types.js";
 import { buildChannelsTable } from "./channels.js";
 
-vi.mock("../../index.js", () => ({
+vi.mock("../../../channels/plugins/index.js", () => ({
   listChannelPlugins: vi.fn(),
 }));
 

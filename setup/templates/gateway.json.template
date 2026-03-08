@@ -1,15 +1,92 @@
 {
+  "logging": {
+    "level": "info",
+    "redactSensitive": "tools"
+  },
+  "tools": {
+    "exec": {
+      "security": "full",
+      "ask": "off"
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto"
+  },
+  "approvals": {
+    "exec": {
+      "enabled": false
+    }
+  },
+  "session": {
+    "scope": "per-sender",
+    "dmScope": "per-channel-peer",
+    "resetTriggers": ["/new", "/reset"],
+    "mainKey": "main"
+  },
+  "gateway": {
+    "mode": "local",
+    "port": {{GATEWAY_PORT}},
+    "bind": "{{GATEWAY_BIND}}",
+    "controlUi": {
+      "enabled": true,
+      "allowInsecureAuth": true
+    },
+    "auth": {
+      "mode": "token",
+      "token": "{{GATEWAY_AUTH_TOKEN}}",
+      "allowTailscale": true
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    }
+  },
   "agents": {
     "defaults": {
-      "heartbeat": {
-        "every": "2h",
-        "model": "openrouter/google/gemini-2.5-flash-lite",
-        "target": "last",
-        "logLevel": "warn",
-        "activeHours": {
-          "start": "05:00",
-          "end": "21:00",
-          "timezone": "user"
+      "workspace": "{{WORKSPACE_DIR}}",
+      "model": {
+        "primary": "{{AGENT_MODEL}}"
+      }
+    },
+    "list": [
+      {
+        "id": "{{AGENT_NAME}}",
+        "default": true,
+        "sandbox": {
+          "mode": "{{SANDBOX_MODE}}"
+        }
+      }
+    ]
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "channels": {
+    "whatsapp": {
+      "dmPolicy": "{{DM_POLICY}}"
+    },
+    "telegram": {
+      "dmPolicy": "{{DM_POLICY}}"
+    },
+    "discord": {
+      "dm": {
+        "policy": "{{DM_POLICY}}"
+      }
+    }
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": {
+          "enabled": true
+        },
+        "command-logger": {
+          "enabled": true
+        },
+        "session-memory": {
+          "enabled": true
         }
       }
     }

@@ -58,7 +58,7 @@ rollback_deployment() {
             local workspace_dir="${WORKSPACE_DIR:-${config_dir}/workspace}"
             local systemd_dir="${agent_home}/.config/systemd/user"
 
-            run_cmd --as "$exec_user" "rm -f '${config_dir}/minion.json'" || true
+            run_cmd --as "$exec_user" "rm -f '${config_dir}/gateway.json' '${config_dir}/minion.json'" || true
             run_cmd --as "$exec_user" "rm -f '${workspace_dir}/SOUL.md'" || true
             run_cmd --as "$exec_user" "rm -f '${systemd_dir}/minion-gateway.service'" || true
             ;;&

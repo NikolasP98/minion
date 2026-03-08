@@ -26,7 +26,7 @@ vi.mock("../../../auto-reply/skill-commands.js", async (importOriginal) => {
     listSkillCommandsForAgents,
   };
 });
-vi.mock("../../../acp/commands.js", () => ({
+vi.mock("../../../plugins/commands.js", () => ({
   getPluginCommandSpecs: pluginCommandMocks.getPluginCommandSpecs,
   matchPluginCommand: pluginCommandMocks.matchPluginCommand,
   executePluginCommand: pluginCommandMocks.executePluginCommand,

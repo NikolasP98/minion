@@ -10,7 +10,7 @@ import {
 
 const runCommandWithTimeoutMock = vi.fn();
 
-vi.mock("../auto-reply/reply/exec.js", () => ({
+vi.mock("../platform/process/exec.js", () => ({
   runCommandWithTimeout: (...args: unknown[]) => runCommandWithTimeoutMock(...args),
 }));
 

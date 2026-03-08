@@ -9,7 +9,7 @@ const getPluginCommandSpecs = vi.hoisted(() => vi.fn());
 const matchPluginCommand = vi.hoisted(() => vi.fn());
 const executePluginCommand = vi.hoisted(() => vi.fn());
 
-vi.mock("../../../acp/commands.js", () => ({
+vi.mock("../../../plugins/commands.js", () => ({
   getPluginCommandSpecs,
   matchPluginCommand,
   executePluginCommand,

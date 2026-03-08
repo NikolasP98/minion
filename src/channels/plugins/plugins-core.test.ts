@@ -92,7 +92,7 @@ describe("channel plugin catalog", () => {
         entries: [
           {
             name: "@openclaw/demo-channel",
-            openclaw: {
+            minion: {
               channel: {
                 id: "demo-channel",
                 label: "Demo Channel",

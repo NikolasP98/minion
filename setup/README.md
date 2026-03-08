@@ -84,7 +84,7 @@ No SSH is involved.
 | 30    | `environment-setup` | Install Node.js, pnpm (corepack), gh CLI, build tools           | 2–5 min   |
 | 40    | `minion-install`    | `git clone` + `pnpm install` + `pnpm build`                     | 3–8 min   |
 | 45    | `alias-setup`       | Create `~/.local/bin/minion` wrapper, update PATH               | 0.5 min   |
-| 50    | `config-generation` | Render templates → `minion.json`, systemd service, `SOUL.md`    | 1–2 min   |
+| 50    | `config-generation` | Render templates → `gateway.json`, systemd service, `SOUL.md`   | 1–2 min   |
 | 60    | `service-setup`     | Reload systemd, enable and start gateway service                | 1–2 min   |
 | 70    | `verification`      | Health checks, wrapper test, deployment summary                 | 0.5–1 min |
 | 95    | `decommission`      | Stop service, free disk, preserve config (via `--decommission`) | 0.5 min   |
@@ -194,7 +194,7 @@ cd "${MINION_ROOT}" && exec node scripts/run-node.mjs "$@"
 
 **What it does:**
 
-- Renders `minion.json.template` → `~/.minion/minion.json` (mode 600)
+- Renders `gateway.json.template` → `~/.minion/gateway.json` (mode 600)
 - Renders `systemd-user.service.template` → `~/.config/systemd/user/minion-gateway.service`
 - Renders `SOUL.md.template` → `~/.minion/workspace/SOUL.md`
 - Validates rendered JSON with `jq` if available
@@ -202,7 +202,7 @@ cd "${MINION_ROOT}" && exec node scripts/run-node.mjs "$@"
 - Sets correct ownership and permissions
 
 **Inputs:** All agent/channel/security/system variables
-**Outputs:** `minion.json`, systemd service file, `SOUL.md`; checkpoint `50-config-generation`
+**Outputs:** `gateway.json`, systemd service file, `SOUL.md`; checkpoint `50-config-generation`
 **Idempotent:** Yes — overwrites existing files with latest config
 
 #### Phase 60 — Service Setup
@@ -228,7 +228,7 @@ cd "${MINION_ROOT}" && exec node scripts/run-node.mjs "$@"
 **What it does:**
 
 - Tests the `minion --version` wrapper command
-- Checks `minion.json` file permissions (expects 600)
+- Checks `gateway.json` file permissions (expects 600)
 - Probes the gateway health endpoint at `http://127.0.0.1:{GATEWAY_PORT}/health`
 - Lists enabled channels
 - Prints a deployment summary with next steps (SSH tunnel, WhatsApp pairing, etc.)
@@ -250,7 +250,7 @@ Triggered via `--decommission` flag. Runs **only this phase** (skips 00–70).
 2. Removes `node_modules/` and `dist/` to free disk space
 3. Opens home directory permissions to 755 (allows other VPS users to browse)
 4. Opens source directory permissions recursively
-5. Preserves credentials (700) and `minion.json` (600)
+5. Preserves credentials (700) and `gateway.json` (600)
 6. Writes `.decommissioned` marker with timestamp
 7. Prints reactivation instructions
 
@@ -277,7 +277,7 @@ Automatically triggered when any phase fails, or run manually via
 **What it does (cascading from last checkpoint):**
 
 - Stops and disables systemd service
-- Removes configuration files (`minion.json`, `SOUL.md`, service file)
+- Removes configuration files (`gateway.json`, `SOUL.md`, service file)
 - Removes the `minion` wrapper and PATH entries
 - Removes the source directory (`MINION_ROOT`)
 - Removes gh authentication
@@ -339,7 +339,7 @@ variable values at render time.
 
 | Template                        | Output                                          | Purpose                      |
 | ------------------------------- | ----------------------------------------------- | ---------------------------- |
-| `minion.json.template`          | `~/.minion/minion.json`                         | Gateway runtime config       |
+| `gateway.json.template`         | `~/.minion/gateway.json`                        | Gateway runtime config       |
 | `systemd-user.service.template` | `~/.config/systemd/user/minion-gateway.service` | Service definition           |
 | `SOUL.md.template`              | `~/.minion/workspace/SOUL.md`                   | Agent personality/guidelines |
 | `minion-wrapper.sh.template`    | `~/.local/bin/minion`                           | CLI wrapper script           |
@@ -635,7 +635,7 @@ setup/
 │   ├── 95-decommission.sh          # Non-destructive shutdown (--decommission)
 │   └── 99-rollback.sh              # Cascading cleanup on failure
 ├── templates/
-│   ├── minion.json.template      # Gateway runtime configuration
+│   ├── gateway.json.template      # Gateway runtime configuration
 │   ├── systemd-user.service.template  # systemd unit file
 │   ├── SOUL.md.template            # Agent personality/guidelines
 │   └── minion-wrapper.sh.template   # CLI wrapper script
@@ -868,7 +868,7 @@ Common causes:
 
 - Missing `dist/entry.js` — rebuild with `cd ~/minion && pnpm install && pnpm build`
 - Port already in use — check with `ss -tuln | grep 18789`
-- Missing API key in `minion.json` — verify `~/.minion/minion.json`
+- Missing API key in `gateway.json` — verify `~/.minion/gateway.json`
 
 ### Build Fails
 
@@ -979,7 +979,7 @@ If configuration generation fails with unresolved placeholders:
 
 ```bash
 # Check which variables are missing
-grep -o '{{[A-Z_]*}}' ~/.minion/minion.json
+grep -o '{{[A-Z_]*}}' ~/.minion/gateway.json
 
 # Re-run config generation with verbose logging
 bash setup/phases/50-config-generation.sh

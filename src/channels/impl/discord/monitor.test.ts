@@ -771,13 +771,17 @@ const { enqueueSystemEventSpy, resolveAgentRouteMock } = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("./monitor/system-events.js", () => ({
+vi.mock("../../../infra/system-events.js", () => ({
   enqueueSystemEvent: enqueueSystemEventSpy,
 }));
 
-vi.mock("../../../routing/resolve-route.js", () => ({
-  resolveAgentRoute: resolveAgentRouteMock,
-}));
+vi.mock("../../../routing/resolve-route.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../routing/resolve-route.js")>();
+  return {
+    ...actual,
+    resolveAgentRoute: resolveAgentRouteMock,
+  };
+});
 
 function makeReactionEvent(overrides?: {
   guildId?: string;

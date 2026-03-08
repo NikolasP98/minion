@@ -49,7 +49,7 @@ vi.mock("../../agents/agent-scope.js", () => ({
 
 vi.mock("../../agents/identity/workspace.js", async () => {
   const actual = await vi.importActual<typeof import("../../agents/identity/workspace.js")>(
-    "../../hooks/workspace.js",
+    "../../agents/identity/workspace.js",
   );
   return {
     ...actual,

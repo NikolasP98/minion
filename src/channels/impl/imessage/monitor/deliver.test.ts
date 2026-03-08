@@ -14,12 +14,12 @@ vi.mock("../send.js", () => ({
     sendMessageIMessageMock(to, message, opts),
 }));
 
-vi.mock("../../discord/chunk.js", () => ({
-  chunkTextWithMode: (text: string) => chunkTextWithModeMock(text),
+vi.mock("../../../../auto-reply/chunk.js", () => ({
+  chunkTextWithMode: (text: string, _limit: number, _mode: string) => chunkTextWithModeMock(text),
   resolveChunkMode: () => resolveChunkModeMock(),
 }));
 
-vi.mock("../../../../hooks/config.js", () => ({
+vi.mock("../../../../config/config.js", () => ({
   loadConfig: () => ({}),
 }));
 

@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory={{MINION_ROOT}}
-ExecStart={{NODE_BIN_PATH}} {{MINION_ROOT}}/scripts/run-node.mjs gateway
+ExecStart={{NODE_BIN_PATH}} {{MINION_ROOT}}/scripts/run-node.mjs gateway --port {{GATEWAY_PORT}}
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -16,6 +16,12 @@ StandardError=journal
 Environment=NODE_ENV=production
 Environment=HOME={{AGENT_HOME_DIR}}
 Environment=NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+Environment=MINION_CONFIG_PATH={{MINION_CONFIG_DIR}}/gateway.json
+
+# Service identity (prevents CLI self-detection loops)
+Environment=MINION_SERVICE_MARKER=minion
+Environment=MINION_SERVICE_KIND=gateway
+Environment=OPENCLAW_SYSTEMD_UNIT=minion-gateway.service
 
 # Security hardening
 NoNewPrivileges=true

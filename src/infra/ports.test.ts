@@ -4,7 +4,7 @@ import { stripAnsi } from "../terminal/ansi.js";
 
 const runCommandWithTimeoutMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../auto-reply/reply/exec.js", () => ({
+vi.mock("../platform/process/exec.js", () => ({
   runCommandWithTimeout: (...args: unknown[]) => runCommandWithTimeoutMock(...args),
 }));
 import { inspectPortUsage } from "./ports-inspect.js";

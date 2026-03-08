@@ -29,24 +29,23 @@ at `setup/setup.sh`.
 - **Entry point**: `setup/setup.sh` — orchestrates all phases
 - **Phases**: `setup/phases/` — 00 through 70 (plus 95-decommission, 99-rollback)
 - **Libraries**: `setup/lib/` — logging, variables, network, templates
-- **Templates**: `setup/templates/` — minion.json, systemd, SOUL.md, wrapper
+- **Templates**: `setup/templates/` — gateway.json, systemd, SOUL.md, wrapper
 - **Config**: `setup/config/defaults.yaml` — all default values
 - **Profiles**: External `minions` repo or `setup/profiles/`
 
 ### Phase Sequence
 
-| Phase | Name             | Purpose                                                             |
-| ----- | ---------------- | ------------------------------------------------------------------- |
-| 00    | Preflight        | Validate environment, test SSH connectivity                         |
-| 10    | VPS Bootstrap    | Fresh VPS setup: admin user, SSH hardening, Tailscale, service user |
-| 20    | User Creation    | Create agent user, directories, enable linger                       |
-| 30    | Environment      | Install/verify Node.js, pnpm, gh CLI, build tools                   |
-| 40    | Install          | Clone repo, checkout branch, pnpm install + build                   |
-| 45    | Alias            | Create `~/.local/bin/minion` wrapper                                |
-| 50    | Config           | Render templates, deploy with correct permissions                   |
-| 60    | Service          | Enable + start systemd user service                                 |
-| 65    | Tailscale Funnel | Expose gateway + OAuth callback over public HTTPS (opt-in)          |
-| 70    | Verification     | Health checks, deployment summary                                   |
+| Phase | Name          | Purpose                                                             |
+| ----- | ------------- | ------------------------------------------------------------------- |
+| 00    | Preflight     | Validate environment, test SSH connectivity                         |
+| 10    | VPS Bootstrap | Fresh VPS setup: admin user, SSH hardening, Tailscale, service user |
+| 20    | User Creation | Create agent user, directories, enable linger                       |
+| 30    | Environment   | Install/verify Node.js, pnpm, gh CLI, build tools                   |
+| 40    | Install       | Clone repo, checkout branch, pnpm install + build                   |
+| 45    | Alias         | Create `~/.local/bin/minion` wrapper                                |
+| 50    | Config        | Render templates, deploy with correct permissions                   |
+| 60    | Service       | Enable + start systemd user service                                 |
+| 70    | Verification  | Health checks, deployment summary                                   |
 
 ### Server Config Files
 
@@ -258,7 +257,7 @@ After provisioning, review the full output for improvement observations using th
 - `--github-pat=TOKEN` — GitHub PAT for private repo access
 - `--tenant=NAME` — Tenant identifier for multi-tenant setups
 - `--profile=PROFILE` — Load from profile file
-- `--tailscale-funnel` — Enable Tailscale Funnel (Phase 65). **Required for Google OAuth and any public HTTPS callback.** The server must have Tailscale installed and authenticated.
+- `--tailscale-funnel` — Enable Tailscale Funnel (manual post-provisioning step). **Required for Google OAuth and any public HTTPS callback.** The server must have Tailscale installed and authenticated.
 - `--tailscale-key=KEY` — Tailscale auth key (if Tailscale needs to be authenticated during provisioning)
 - `--oauth-callback-port=PORT` — OAuth callback server port (default: 51234)
 

@@ -220,7 +220,7 @@ function auditGatewayToken(
   issues.push({
     code: SERVICE_AUDIT_CODES.gatewayTokenMismatch,
     message:
-      "Gateway service MINION_GATEWAY_TOKEN does not match gateway.auth.token in minion.json",
+      "Gateway service MINION_GATEWAY_TOKEN does not match gateway.auth.token in gateway config",
     detail: serviceToken ? "service token is stale" : "service token is missing",
     level: "recommended",
   });

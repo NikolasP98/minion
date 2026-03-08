@@ -9,10 +9,14 @@ const mocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn(),
 }));
 
-vi.mock("../../hooks/config.js", () => ({
-  readConfigFileSnapshot: mocks.readConfigFileSnapshot,
-  resolveGatewayPort: mocks.resolveGatewayPort,
-}));
+vi.mock("../../config/config.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../config/config.js")>();
+  return {
+    ...actual,
+    readConfigFileSnapshot: mocks.readConfigFileSnapshot,
+    resolveGatewayPort: mocks.resolveGatewayPort,
+  };
+});
 
 vi.mock("./onboard-helpers.js", () => ({
   resolveControlUiLinks: mocks.resolveControlUiLinks,
