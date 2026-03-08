@@ -86,6 +86,9 @@ export class DiscordMessageListener extends MessageCreateListener {
   }
 
   async handle(data: DiscordMessageEvent, client: Client) {
+    console.log(
+      `[DEBUG-DISCORD] DiscordMessageListener.handle() called, message id=${(data as { id?: string }).id}`,
+    );
     const startedAt = Date.now();
     const task = Promise.resolve(this.handler(data, client));
     void task

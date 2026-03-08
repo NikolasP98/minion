@@ -554,7 +554,13 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     guildEntries,
   });
 
-  registerDiscordListener(client.listeners, new DiscordMessageListener(messageHandler, logger));
+  const msgListenerAdded = registerDiscordListener(
+    client.listeners,
+    new DiscordMessageListener(messageHandler, logger),
+  );
+  console.log(
+    `[DEBUG-DISCORD] registerDiscordListener result=${msgListenerAdded}, total listeners=${client.listeners.length}, types=${client.listeners.map((l: { type?: string }) => l.type).join(",")}`,
+  );
   registerDiscordListener(
     client.listeners,
     new DiscordReactionListener({
