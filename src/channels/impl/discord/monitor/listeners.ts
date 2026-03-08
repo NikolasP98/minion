@@ -78,17 +78,22 @@ export function registerDiscordListener(listeners: Array<object>, listener: obje
 }
 
 export class DiscordMessageListener extends MessageCreateListener {
+  private lifecycleLog = createSubsystemLogger("discord/lifecycle");
+
   constructor(
     private handler: DiscordMessageHandler,
     private logger?: Logger,
+    private accountId?: string,
   ) {
     super();
   }
 
   async handle(data: DiscordMessageEvent, client: Client) {
     const messageId = (data as { id?: string }).id ?? "unknown";
-    const lifecycleLog = this.logger ?? discordEventQueueLog;
-    lifecycleLog.info(`MESSAGE_CREATE received: ${messageId}`, { messageId });
+    this.lifecycleLog.info(`MESSAGE_CREATE received: ${messageId}`, {
+      messageId,
+      accountId: this.accountId,
+    });
     const startedAt = Date.now();
     const task = Promise.resolve(this.handler(data, client));
     void task

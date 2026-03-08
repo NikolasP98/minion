@@ -392,7 +392,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     );
   }
 
-  const applicationId = await fetchDiscordApplicationId(token, 4000, discordRestFetch);
+  const applicationId = await fetchDiscordApplicationId(token, 10_000, discordRestFetch);
   lifecycleLog.info(`appId: ${account.accountId} result=${applicationId ?? "null"}`, {
     accountId: account.accountId,
     applicationId: applicationId ?? null,
@@ -562,7 +562,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     guildEntries,
   });
 
-  registerDiscordListener(client.listeners, new DiscordMessageListener(messageHandler, logger));
+  registerDiscordListener(
+    client.listeners,
+    new DiscordMessageListener(messageHandler, logger, account.accountId),
+  );
   registerDiscordListener(
     client.listeners,
     new DiscordReactionListener({
