@@ -205,7 +205,7 @@ export function buildServiceEnvironment(params: {
   token?: string;
   launchdLabel?: string;
 }): Record<string, string | undefined> {
-  const { env, port, token, launchdLabel } = params;
+  const { env, token, launchdLabel } = params;
   const profile = env.MINION_PROFILE;
   const resolvedLaunchdLabel =
     launchdLabel ||
@@ -222,7 +222,9 @@ export function buildServiceEnvironment(params: {
     MINION_PROFILE: profile,
     MINION_STATE_DIR: stateDir,
     MINION_CONFIG_PATH: configPath,
-    MINION_GATEWAY_PORT: String(port),
+    // MINION_GATEWAY_PORT intentionally omitted — the --port CLI arg in ExecStart
+    // is the canonical port source. Including both causes drift when one is updated
+    // without the other (e.g. service file says --port 18789 but env says 28789).
     MINION_GATEWAY_TOKEN: token,
     OPENCLAW_LAUNCHD_LABEL: resolvedLaunchdLabel,
     OPENCLAW_SYSTEMD_UNIT: systemdUnit,

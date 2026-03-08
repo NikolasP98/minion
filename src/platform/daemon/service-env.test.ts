@@ -272,7 +272,8 @@ describe("buildServiceEnvironment", () => {
     } else {
       expect(env.PATH).toContain("/usr/bin");
     }
-    expect(env.MINION_GATEWAY_PORT).toBe("18789");
+    // MINION_GATEWAY_PORT intentionally omitted from service env — --port in ExecStart is canonical
+    expect(env.MINION_GATEWAY_PORT).toBeUndefined();
     expect(env.MINION_GATEWAY_TOKEN).toBe("secret");
     expect(env.MINION_SERVICE_MARKER).toBe("minion");
     expect(env.MINION_SERVICE_KIND).toBe("gateway");

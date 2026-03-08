@@ -24,6 +24,7 @@ import {
   pickGatewayPort,
   renderBeaconLines,
 } from "./discover.js";
+import { addGatewayRelocateCommand } from "./relocate.js";
 import { addGatewayRunCommand } from "./run.js";
 
 function runGatewayCommand(action: () => Promise<void>, label?: string) {
@@ -274,4 +275,6 @@ export function registerGatewayCli(program: Command) {
         }
       }, "gateway discover failed");
     });
+
+  addGatewayRelocateCommand(gateway);
 }

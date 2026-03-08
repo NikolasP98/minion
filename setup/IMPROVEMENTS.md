@@ -128,6 +128,26 @@ completed work (`- [x]`).
   - Delivered in: `~bot-prd/.config/systemd/user/minion-gateway.service` on bernibites
   - Completed: 2026-02-15
 
+- [x] **`minion gateway relocate` CLI command**
+  - Description: Rewrites all hardcoded absolute paths in `.minion` state files after server migration. Targets gateway.json, agents-list.json, exec-approvals.json, per-agent sessions.json, qmd index.yml, and auth credential files. Supports `--dry-run`, `--from-host`/`--to-host` for hostname rewriting. JSON-aware (no sed trailing-comma bugs).
+  - Delivered in: `src/cli/gateway-cli/relocate.ts`, `src/cli/gateway-cli/register.ts`
+  - Completed: 2026-03-08
+
+- [x] **Server-to-server state migration utility**
+  - Description: Shell script that automates cloning `.minion` state between servers: streaming tarball via SSH pipe (no intermediate storage), fixing ownership, running `minion gateway relocate`, validating JSON. Leaves service management to the operator.
+  - Delivered in: `setup/utilities/migrate-state.sh`
+  - Completed: 2026-03-08
+
+- [x] **Fix KillMode=process orphaning child processes**
+  - Description: `KillMode=process` in generated systemd units left orphaned `qmd embed` processes across restarts, consuming memory and blocking new gateway startups. Changed to `KillMode=mixed` with `TimeoutStopSec=15` so children are cleaned up after main process exits.
+  - Delivered in: `src/platform/daemon/systemd-unit.ts`
+  - Completed: 2026-03-08
+
+- [x] **Remove redundant MINION_GATEWAY_PORT from service env**
+  - Description: `buildServiceEnvironment()` emitted `MINION_GATEWAY_PORT` in the systemd env block even though `--port` was already in ExecStart args. This caused drift when they disagreed (env=28789, arg=18789). Removed the env var — `--port` in ExecStart is the canonical source.
+  - Delivered in: `src/platform/daemon/service-env.ts`
+  - Completed: 2026-03-08
+
 ---
 
 ## Proposal Template
