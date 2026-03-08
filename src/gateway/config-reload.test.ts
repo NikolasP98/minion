@@ -102,6 +102,37 @@ describe("buildGatewayReloadPlan", () => {
     expect(plan.restartChannels).toEqual(expected);
   });
 
+  it("auto-registers channels.<id> as hot-reloadable for plugins without explicit reload config", () => {
+    const discordPlugin: ChannelPlugin = {
+      id: "discord",
+      meta: {
+        id: "discord",
+        label: "Discord",
+        selectionLabel: "Discord",
+        docsPath: "/channels/discord",
+        blurb: "test",
+      },
+      capabilities: { chatTypes: ["direct"] },
+      config: { listAccountIds: () => [], resolveAccount: () => ({}) },
+      // No reload config — should auto-register channels.discord
+    };
+    const autoRegistry = createTestRegistry([
+      { pluginId: "discord", plugin: discordPlugin, source: "test" },
+    ]);
+    setActivePluginRegistry(autoRegistry);
+
+    const plan = buildGatewayReloadPlan(["channels.discord.accounts.farquaad.enabled"]);
+    expect(plan.restartGateway).toBe(false);
+    expect(plan.restartChannels).toEqual(new Set(["discord"]));
+  });
+
+  it("auto-registered channel prefix does not override explicit reload config", () => {
+    // whatsappPlugin has channels.whatsapp as noop — auto-registration should not override it
+    const plan = buildGatewayReloadPlan(["channels.whatsapp.accounts.default.enabled"]);
+    expect(plan.restartGateway).toBe(false);
+    expect(plan.noopPaths).toContain("channels.whatsapp.accounts.default.enabled");
+  });
+
   it("treats gateway.remote as no-op", () => {
     const plan = buildGatewayReloadPlan(["gateway.remote.url"]);
     expect(plan.restartGateway).toBe(false);

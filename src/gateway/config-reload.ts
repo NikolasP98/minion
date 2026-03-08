@@ -79,6 +79,7 @@ const BASE_RELOAD_RULES_TAIL: ReloadRule[] = [
   { prefix: "session", kind: "none" },
   { prefix: "talk", kind: "none" },
   { prefix: "skills", kind: "none" },
+  { prefix: "memory", kind: "none" },
   { prefix: "plugins", kind: "restart" },
   { prefix: "ui", kind: "none" },
   { prefix: "gateway", kind: "restart" },
@@ -99,21 +100,38 @@ function listReloadRules(): ReloadRule[] {
     return cachedReloadRules;
   }
   // Channel docking: plugins contribute hot reload/no-op prefixes here.
-  const channelReloadRules: ReloadRule[] = listChannelPlugins().flatMap((plugin) => [
-    ...(plugin.reload?.configPrefixes ?? []).map(
-      (prefix): ReloadRule => ({
-        prefix,
+  // Also auto-register `channels.<id>` as hot-reloadable for every known channel
+  // so that toggling enabled/disabled doesn't trigger a full gateway restart.
+  const channelReloadRules: ReloadRule[] = listChannelPlugins().flatMap((plugin) => {
+    const explicit = [
+      ...(plugin.reload?.configPrefixes ?? []).map(
+        (prefix): ReloadRule => ({
+          prefix,
+          kind: "hot" as const,
+          actions: [`restart-channel:${plugin.id}` as ReloadAction],
+        }),
+      ),
+      ...(plugin.reload?.noopPrefixes ?? []).map(
+        (prefix): ReloadRule => ({
+          prefix,
+          kind: "none" as const,
+        }),
+      ),
+    ];
+    // Auto-register channels.<id> prefix if not already covered by explicit rules
+    const autoPrefix = `channels.${plugin.id}`;
+    const alreadyCovered = explicit.some(
+      (r) => r.prefix === autoPrefix || autoPrefix.startsWith(`${r.prefix}.`),
+    );
+    if (!alreadyCovered) {
+      explicit.push({
+        prefix: autoPrefix,
         kind: "hot",
         actions: [`restart-channel:${plugin.id}` as ReloadAction],
-      }),
-    ),
-    ...(plugin.reload?.noopPrefixes ?? []).map(
-      (prefix): ReloadRule => ({
-        prefix,
-        kind: "none",
-      }),
-    ),
-  ]);
+      });
+    }
+    return explicit;
+  });
   const rules = [...BASE_RELOAD_RULES, ...channelReloadRules, ...BASE_RELOAD_RULES_TAIL];
   cachedReloadRules = rules;
   return rules;
