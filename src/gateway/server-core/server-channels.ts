@@ -9,7 +9,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { type BackoffPolicy, computeBackoff, sleepWithAbort } from "../../infra/backoff.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { resetDirectoryCache } from "../../infra/outbound/target-resolver.js";
-import type { createSubsystemLogger } from "../../logging/subsystem.js";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import type { RuntimeEnv } from "../../runtime.js";
 
@@ -83,6 +83,7 @@ export type ChannelManager = {
 // Channel docking: lifecycle hooks (`plugin.gateway`) flow through this manager.
 export function createChannelManager(opts: ChannelManagerOptions): ChannelManager {
   const { loadConfig, channelLogs, channelRuntimeEnvs } = opts;
+  const lifecycleLog = createSubsystemLogger("channels/lifecycle");
 
   const channelStores = new Map<ChannelId, ChannelRuntimeStore>();
   // Tracks restart attempts per channel:account. Reset on successful start.
@@ -126,6 +127,12 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
   ) => {
     const plugin = getChannelPlugin(channelId);
     const startAccount = plugin?.gateway?.startAccount;
+    lifecycleLog.info(`startChannel: ${channelId} ${accountId ?? "all"}`, {
+      channelId,
+      accountId: accountId ?? "all",
+      plugin: !!plugin,
+      startAccount: !!startAccount,
+    });
     if (!startAccount) {
       return;
     }
@@ -335,9 +342,13 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
   };
 
   const startChannels = async () => {
+    const plugins = listChannelPlugins();
+    lifecycleLog.info(`startChannels: plugins=[${plugins.map((p) => p.id).join(",")}]`, {
+      plugins: plugins.map((p) => p.id),
+    });
     // Start different channel types concurrently; account staggering within
     // each channel is handled by startChannelInternal.
-    await Promise.allSettled(listChannelPlugins().map((plugin) => startChannel(plugin.id)));
+    await Promise.allSettled(plugins.map((plugin) => startChannel(plugin.id)));
   };
 
   const markChannelLoggedOut = (channelId: ChannelId, cleared: boolean, accountId?: string) => {

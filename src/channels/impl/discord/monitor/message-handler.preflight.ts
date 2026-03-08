@@ -288,7 +288,7 @@ export async function preflightDiscordMessage(
     Object.keys(params.guildEntries).length > 0 &&
     !guildInfo
   ) {
-    logDebug(
+    logVerbose(
       `[discord-preflight] guild blocked: guild_id=${params.data.guild_id} guildEntries keys=${Object.keys(params.guildEntries).join(",")}`,
     );
     logVerbose(
@@ -337,7 +337,7 @@ export async function preflightDiscordMessage(
     );
   }
   if (isGuildMessage && channelConfig?.enabled === false) {
-    logDebug(`[discord-preflight] drop: channel disabled`);
+    logVerbose(`[discord-preflight] drop: channel disabled channelId=${messageChannelId}`);
     logVerbose(
       `Blocked discord channel ${messageChannelId} (channel disabled, ${channelMatchMeta})`,
     );
@@ -552,7 +552,9 @@ export async function preflightDiscordMessage(
   );
   if (isGuildMessage && shouldRequireMention) {
     if (botId && mentionGate.shouldSkip) {
-      logDebug(`[discord-preflight] drop: no-mention`);
+      logVerbose(
+        `[discord-preflight] drop: no-mention channelId=${messageChannelId} messageId=${message.id}`,
+      );
       logVerbose(`discord: drop guild message (mention required, botId=${botId})`);
       logger.info(
         {
@@ -594,7 +596,9 @@ export async function preflightDiscordMessage(
   }
 
   if (!messageText) {
-    logDebug(`[discord-preflight] drop: empty content`);
+    logVerbose(
+      `[discord-preflight] drop: empty content messageId=${message.id} channelId=${messageChannelId}`,
+    );
     logVerbose(`discord: drop message ${message.id} (empty content)`);
     return null;
   }

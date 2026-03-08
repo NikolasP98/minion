@@ -168,6 +168,10 @@ function formatDiscordDeployErrorDetails(err: unknown): string {
 }
 
 export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
+  const lifecycleLog = createSubsystemLogger("discord/lifecycle");
+  lifecycleLog.info(`provider enter: ${opts.accountId ?? "default"}`, {
+    accountId: opts.accountId ?? "default",
+  });
   const cfg = opts.config ?? loadConfig();
   const account = resolveDiscordAccount({
     cfg,
@@ -389,6 +393,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   }
 
   const applicationId = await fetchDiscordApplicationId(token, 4000, discordRestFetch);
+  lifecycleLog.info(`appId: ${account.accountId} result=${applicationId ?? "null"}`, {
+    accountId: account.accountId,
+    applicationId: applicationId ?? null,
+  });
   if (!applicationId) {
     throw new Error("Failed to resolve Discord application id");
   }
@@ -554,13 +562,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     guildEntries,
   });
 
-  const msgListenerAdded = registerDiscordListener(
-    client.listeners,
-    new DiscordMessageListener(messageHandler, logger),
-  );
-  console.log(
-    `[DEBUG-DISCORD] registerDiscordListener result=${msgListenerAdded}, total listeners=${client.listeners.length}, types=${client.listeners.map((l: { type?: string }) => l.type).join(",")}`,
-  );
+  registerDiscordListener(client.listeners, new DiscordMessageListener(messageHandler, logger));
   registerDiscordListener(
     client.listeners,
     new DiscordReactionListener({
@@ -592,7 +594,17 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
   }
 
+  const listenerTypes = client.listeners.map((l: { type?: string }) => l.type).filter(Boolean);
+  lifecycleLog.info(
+    `listeners registered: count=${listenerTypes.length} types=[${listenerTypes.join(",")}]`,
+    { accountId: account.accountId, count: listenerTypes.length, types: listenerTypes },
+  );
+
   runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
+  lifecycleLog.info(
+    `provider ready: ${account.accountId} botUserId=${botUserId ?? "unknown"} listeners=${listenerTypes.length}`,
+    { accountId: account.accountId, botUserId: botUserId ?? null, listeners: listenerTypes.length },
+  );
 
   // Start exec approvals handler after client is ready
   if (execApprovalsHandler) {
