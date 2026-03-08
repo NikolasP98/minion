@@ -73,9 +73,18 @@ export function getCredentialsDir(agentId: string): string {
  * Get the legacy credentials directory for an agent (gog-credentials/).
  * Used only for fallback reads and migration.
  */
-function getLegacyCredentialsDir(agentId: string): string {
+export function getLegacyCredentialsDir(agentId: string): string {
   const homeDir = os.homedir();
   return path.join(homeDir, ".minion", "agents", agentId, "gog-credentials");
+}
+
+/**
+ * Build a sanitized credential filename from session key and email.
+ */
+export function buildCredentialFilename(sessionKey: string, email: string): string {
+  const safeSessionKey = sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const safeEmail = email.replace(/[^a-zA-Z0-9@._-]/g, "_");
+  return `${safeSessionKey}_${safeEmail}.json`;
 }
 
 /**
@@ -83,10 +92,7 @@ function getLegacyCredentialsDir(agentId: string): string {
  */
 export function getCredentialsPath(agentId: string, sessionKey: string, email: string): string {
   const dir = getCredentialsDir(agentId);
-  // Sanitize sessionKey and email for filesystem
-  const safeSessionKey = sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const safeEmail = email.replace(/[^a-zA-Z0-9@._-]/g, "_");
-  return path.join(dir, `${safeSessionKey}_${safeEmail}.json`);
+  return path.join(dir, buildCredentialFilename(sessionKey, email));
 }
 
 /**

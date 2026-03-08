@@ -9,7 +9,7 @@
  *  - GogOAuthSchema in src/config/zod-schema.hooks.ts
  */
 export interface OAuthServerConfig {
-  /** Port to bind the server to (default: 51234) */
+  /** Port to bind the server to (default: DEFAULT_OAUTH_CALLBACK_PORT from port-defaults.ts) */
   port?: number;
   /** Host to bind to (default: "127.0.0.1") */
   bind?: string;

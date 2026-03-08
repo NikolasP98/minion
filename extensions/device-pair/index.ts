@@ -11,6 +11,7 @@ function renderQrAscii(data: string): Promise<string> {
   });
 }
 
+// INTENTIONAL: plugin SDK boundary prevents importing from main package
 const DEFAULT_GATEWAY_PORT = 18789;
 
 type DevicePairPluginConfig = {

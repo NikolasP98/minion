@@ -1,3 +1,4 @@
+/** Synchronous JSON file I/O. For async/atomic writes, see ./json-files.ts */
 import fs from "node:fs";
 import path from "node:path";
 

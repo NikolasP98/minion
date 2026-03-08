@@ -10,6 +10,15 @@ vi.mock("../../hooks/gog-credentials.js", () => ({
   getGoogleClientId: () => "test-client-id-123",
   getGoogleClientSecret: () => "test-client-secret-456",
   syncToGogKeyring: vi.fn().mockResolvedValue({ success: true }),
+  getCredentialsDir: (agentId: string) =>
+    path.join(os.homedir(), ".minion", "agents", agentId, "auth-credentials", "google"),
+  getLegacyCredentialsDir: (agentId: string) =>
+    path.join(os.homedir(), ".minion", "agents", agentId, "gog-credentials"),
+  buildCredentialFilename: (sessionKey: string, email: string) => {
+    const safeSessionKey = sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeEmail = email.replace(/[^a-zA-Z0-9@._-]/g, "_");
+    return `${safeSessionKey}_${safeEmail}.json`;
+  },
 }));
 
 describe("GoogleAuthProvider", () => {

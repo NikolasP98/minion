@@ -12,6 +12,7 @@
  */
 
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { normalizeToolName } from "./normalize-tool-name.js";
 
 const log = createSubsystemLogger("tools/rate-limiter");
 
@@ -50,7 +51,7 @@ export class ToolRateLimiter {
    * Add or update rate limit config for a tool.
    */
   setConfig(toolName: string, config: RateLimitConfig): void {
-    this.configs.set(normalize(toolName), config);
+    this.configs.set(normalizeToolName(toolName), config);
   }
 
   /**
@@ -60,7 +61,7 @@ export class ToolRateLimiter {
    * Returns `{ allowed: false, retryAfter }` if rate limited.
    */
   tryCall(toolName: string): RateLimitResult {
-    const key = normalize(toolName);
+    const key = normalizeToolName(toolName);
     const config = this.configs.get(key);
 
     // No config → unlimited.
@@ -80,13 +81,13 @@ export class ToolRateLimiter {
     }
 
     // Prune expired entries.
-    while (timestamps.length > 0 && timestamps[0]! < cutoff) {
+    while (timestamps.length > 0 && timestamps[0] < cutoff) {
       timestamps.shift();
     }
 
     // Check limit.
     if (timestamps.length >= config.maxCalls) {
-      const oldestExpiry = timestamps[0]! + windowMs;
+      const oldestExpiry = timestamps[0] + windowMs;
       const retryAfter = Math.ceil((oldestExpiry - now) / 1000);
       log.debug(
         `Rate limited: ${toolName} (${timestamps.length}/${config.maxCalls} in ${config.windowSecs}s, retry in ${retryAfter}s)`,
@@ -113,12 +114,16 @@ export class ToolRateLimiter {
    * Check without recording (peek).
    */
   wouldAllow(toolName: string): boolean {
-    const key = normalize(toolName);
+    const key = normalizeToolName(toolName);
     const config = this.configs.get(key);
-    if (!config) return true;
+    if (!config) {
+      return true;
+    }
 
     const timestamps = this.windows.get(key);
-    if (!timestamps) return true;
+    if (!timestamps) {
+      return true;
+    }
 
     const cutoff = Date.now() - config.windowSecs * 1000;
     const active = timestamps.filter((t) => t >= cutoff);
@@ -158,8 +163,4 @@ export class ToolRateLimiter {
   static formatError(toolName: string, result: RateLimitResult): string {
     return `Tool "${toolName}" is rate limited: ${result.currentCount}/${result.limit} calls used. Try again in ${result.retryAfter} seconds.`;
   }
-}
-
-function normalize(name: string): string {
-  return name.toLowerCase().replace(/[-\s]/g, "_");
 }

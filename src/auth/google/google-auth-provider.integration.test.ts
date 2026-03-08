@@ -14,11 +14,15 @@ import { createGoogleAuthProvider } from "./google-auth-provider.js";
 
 // ── Mock dependencies ────────────────────────────────────────────────
 
-vi.mock("../../hooks/gog-credentials.js", () => ({
-  getGoogleClientId: () => "integration-client-id",
-  getGoogleClientSecret: () => "integration-client-secret",
-  syncToGogKeyring: vi.fn().mockResolvedValue({ success: true }),
-}));
+vi.mock("../../hooks/gog-credentials.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../hooks/gog-credentials.js")>();
+  return {
+    ...original,
+    getGoogleClientId: () => "integration-client-id",
+    getGoogleClientSecret: () => "integration-client-secret",
+    syncToGogKeyring: vi.fn().mockResolvedValue({ success: true }),
+  };
+});
 
 // ── Mock token server ────────────────────────────────────────────────
 

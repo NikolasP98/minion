@@ -10,7 +10,7 @@
 export type AuthServerConfig = {
   /** Whether OAuth callback server is enabled (default: true) */
   enabled?: boolean;
-  /** Port to bind OAuth callback server (default: 51234) */
+  /** Port to bind OAuth callback server (default: DEFAULT_OAUTH_CALLBACK_PORT from port-defaults.ts) */
   port?: number;
   /** Host to bind OAuth callback server (default: "127.0.0.1") */
   bind?: string;

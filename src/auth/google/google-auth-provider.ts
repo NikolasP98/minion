@@ -8,11 +8,13 @@
  */
 
 import fs from "fs/promises";
-import os from "os";
 import path from "path";
 import {
+  buildCredentialFilename,
+  getCredentialsDir,
   getGoogleClientId,
   getGoogleClientSecret,
+  getLegacyCredentialsDir,
   syncToGogKeyring,
 } from "../../hooks/gog-credentials.js";
 import { GOOGLE_SERVICE_SCOPES, getScopesForServices } from "../../hooks/gog-oauth-types.js";
@@ -29,31 +31,8 @@ import type {
 const log = createSubsystemLogger("google-auth-provider");
 
 // ── Credential path helpers ──────────────────────────────────────────
-
-/**
- * Get the provider-specific credentials directory for an agent.
- * Uses the new `auth-credentials/google/` path (not legacy `gog-credentials/`).
- */
-export function getProviderCredentialsDir(agentId: string): string {
-  return path.join(os.homedir(), ".minion", "agents", agentId, "auth-credentials", "google");
-}
-
-/**
- * Get the legacy credentials directory for an agent (gog-credentials/).
- * Used only for migration.
- */
-function getLegacyCredentialsDir(agentId: string): string {
-  return path.join(os.homedir(), ".minion", "agents", agentId, "gog-credentials");
-}
-
-/**
- * Build a sanitized credential filename from session key and email.
- */
-function buildCredentialFilename(sessionKey: string, email: string): string {
-  const safeSessionKey = sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const safeEmail = email.replace(/[^a-zA-Z0-9@._-]/g, "_");
-  return `${safeSessionKey}_${safeEmail}.json`;
-}
+// Canonical implementations live in gog-credentials.ts; re-export alias for test compat.
+export { getCredentialsDir as getProviderCredentialsDir };
 
 // ── Factory ──────────────────────────────────────────────────────────
 
@@ -116,7 +95,7 @@ export function createGoogleAuthProvider(): AuthProvider {
     },
 
     async storeCredentials(params: StoreCredentialsParams): Promise<string> {
-      const dir = getProviderCredentialsDir(params.agentId);
+      const dir = getCredentialsDir(params.agentId);
       await fs.mkdir(dir, { recursive: true, mode: 0o700 });
 
       const filename = buildCredentialFilename(params.sessionKey, params.email);
@@ -150,7 +129,7 @@ export function createGoogleAuthProvider(): AuthProvider {
       const filename = buildCredentialFilename(sessionKey, email);
 
       // 1. Check new path first
-      const newDir = getProviderCredentialsDir(agentId);
+      const newDir = getCredentialsDir(agentId);
       const newPath = path.join(newDir, filename);
 
       try {

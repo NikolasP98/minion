@@ -1,3 +1,4 @@
+/** Async JSON file I/O with atomic writes. For sync I/O, see ./json-file.ts */
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -18,7 +19,7 @@ export async function writeJsonAtomic(
 ) {
   const mode = options?.mode ?? 0o600;
   const dir = path.dirname(filePath);
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   const tmp = `${filePath}.${randomUUID()}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(value, null, 2), "utf8");
   try {
@@ -34,19 +35,4 @@ export async function writeJsonAtomic(
   }
 }
 
-export function createAsyncLock() {
-  let lock: Promise<void> = Promise.resolve();
-  return async function withLock<T>(fn: () => Promise<T>): Promise<T> {
-    const prev = lock;
-    let release: (() => void) | undefined;
-    lock = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await prev;
-    try {
-      return await fn();
-    } finally {
-      release?.();
-    }
-  };
-}
+export { createAsyncLock } from "./async-lock.js";

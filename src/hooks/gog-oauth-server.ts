@@ -9,6 +9,7 @@ import http from "http";
 import { URL } from "url";
 import { createGoogleAuthProvider } from "../auth/google/google-auth-provider.js";
 import type { AuthProvider } from "../auth/provider.js";
+import { DEFAULT_OAUTH_CALLBACK_PORT } from "../config/port-defaults.js";
 import { updateSessionStore, resolveDefaultSessionStorePath } from "../config/sessions.js";
 import { upsertSharedEnvVar } from "../infra/env-file.js";
 import { logAcceptedEnvOption } from "../infra/env.js";
@@ -37,7 +38,7 @@ const DEFAULT_CONFIG: Required<
   Omit<OAuthServerConfig, "externalRedirectUri" | "googleClientCredentialsFile">
 > = {
   enabled: true,
-  port: 51234,
+  port: DEFAULT_OAUTH_CALLBACK_PORT,
   bind: "127.0.0.1",
   callbackPath: "/oauth-callback",
   timeoutMinutes: 5,
@@ -546,8 +547,11 @@ export async function startGogOAuthServer(
     throw new Error("OAuth server is disabled in configuration");
   }
 
-  // Try ports from 51234 to 51239
-  const ports = [fullConfig.port, 51235, 51236, 51237, 51238, 51239];
+  // Try configured port, then fallback to next 5 ports
+  const ports = [
+    fullConfig.port,
+    ...Array.from({ length: 5 }, (_, i) => DEFAULT_OAUTH_CALLBACK_PORT + 1 + i),
+  ];
   let lastError: Error | null = null;
 
   for (const port of ports) {

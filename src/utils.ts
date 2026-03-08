@@ -9,8 +9,8 @@ import {
   resolveRequiredHomeDir,
 } from "./infra/home-dir.js";
 
-export async function ensureDir(dir: string) {
-  await fs.promises.mkdir(dir, { recursive: true });
+export async function ensureDir(dir: string, mode?: number) {
+  await fs.promises.mkdir(dir, { recursive: true, mode });
 }
 
 /**
@@ -308,6 +308,13 @@ export function resolveUserPath(input: string): string {
   return path.resolve(trimmed);
 }
 
+/**
+ * Resolve the configuration/state directory.
+ *
+ * NOTE: src/platform/daemon/paths.ts has its own resolveGatewayStateDir with
+ * intentionally different env var precedence (OPENCLAW > MINION) for backward
+ * compat with existing daemon installations. Do not merge these implementations.
+ */
 export function resolveConfigDir(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = os.homedir,

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expandHomePrefix, resolveRequiredHomeDir } from "../infra/home-dir.js";
+import { DEFAULT_GATEWAY_PORT } from "./port-defaults.js";
 import type { OpenClawConfig } from "./types.js";
 
 /**
@@ -240,7 +241,7 @@ export function resolveAgentConfigPath(stateDir: string, agentId: string): strin
   return path.join(stateDir, "agents", agentId, "minion.json");
 }
 
-export const DEFAULT_GATEWAY_PORT = 18789;
+export { DEFAULT_GATEWAY_PORT };
 
 /**
  * Gateway lock directory (ephemeral).
