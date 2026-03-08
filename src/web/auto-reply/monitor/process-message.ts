@@ -276,11 +276,11 @@ export async function processMessage(params: {
     enabled: statusReactionsEnabled,
     chatJid: params.msg.chatId,
     messageId: params.msg.id!,
-    initialEmoji: ackReaction,
     fromMe: false,
     participant: params.msg.senderJid,
     accountId: params.route.accountId,
     verbose: params.verbose,
+    statusCfg: params.cfg.channels?.whatsapp?.statusReactions,
   });
   if (statusReactionsEnabled) {
     void statusReactions.setQueued();

@@ -31,6 +31,30 @@ const WhatsAppAckReactionSchema = z
   .strict()
   .optional();
 
+const WhatsAppStatusReactionPhaseEmojisSchema = z
+  .object({
+    queued: z.string().optional(),
+    thinking: z.string().optional(),
+    writing: z.string().optional(),
+    coding: z.string().optional(),
+    web: z.string().optional(),
+    tool: z.string().optional(),
+    done: z.string().optional(),
+    error: z.string().optional(),
+    stallSoft: z.string().optional(),
+    stallHard: z.string().optional(),
+  })
+  .strict()
+  .optional();
+
+const WhatsAppStatusReactionSchema = z
+  .object({
+    phaseEmojis: WhatsAppStatusReactionPhaseEmojisSchema,
+    toolEmojis: z.record(z.string(), z.string()).optional(),
+  })
+  .strict()
+  .optional();
+
 const WhatsAppSharedSchema = z.object({
   capabilities: z.array(z.string()).optional(),
   markdown: MarkdownConfigSchema,
@@ -52,6 +76,7 @@ const WhatsAppSharedSchema = z.object({
   blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
   groups: WhatsAppGroupsSchema,
   ackReaction: WhatsAppAckReactionSchema,
+  statusReactions: WhatsAppStatusReactionSchema,
   debounceMs: z.number().int().nonnegative().optional().default(0),
   heartbeat: ChannelHeartbeatVisibilitySchema,
 });

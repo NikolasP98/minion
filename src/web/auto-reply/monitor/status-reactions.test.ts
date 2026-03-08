@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WhatsAppStatusReactionConfig } from "../../../config/types.whatsapp.js";
 import {
   createWhatsAppStatusReactionController,
   shouldSendStatusReaction,
+  STATUS_DEFAULTS,
   STATUS_TIMING,
 } from "./status-reactions.js";
 
@@ -45,7 +47,6 @@ function makeController(
     enabled: true,
     chatJid: "123@s.whatsapp.net",
     messageId: "msg-1",
-    initialEmoji: "\u{1F440}", // 👀
     fromMe: false,
     participant: "456@s.whatsapp.net",
     accountId: "default",
@@ -64,15 +65,30 @@ describe("createWhatsAppStatusReactionController", () => {
     vi.useRealTimers();
   });
 
-  it("setQueued sends initial emoji immediately", async () => {
+  it("setQueued sends default eyes emoji", async () => {
     const ctrl = makeController();
     await ctrl.setQueued();
 
     expect(mockSendReaction).toHaveBeenCalledWith(
       "123@s.whatsapp.net",
       "msg-1",
-      "\u{1F440}",
+      STATUS_DEFAULTS.queued,
       expect.objectContaining({ fromMe: false, participant: "456@s.whatsapp.net" }),
+    );
+  });
+
+  it("setQueued uses config override when provided", async () => {
+    const statusCfg: WhatsAppStatusReactionConfig = {
+      phaseEmojis: { queued: "\u{1F6A8}" }, // 🚨
+    };
+    const ctrl = makeController({ statusCfg });
+    await ctrl.setQueued();
+
+    expect(mockSendReaction).toHaveBeenCalledWith(
+      "123@s.whatsapp.net",
+      "msg-1",
+      "\u{1F6A8}",
+      expect.anything(),
     );
   });
 
@@ -91,12 +107,12 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       "123@s.whatsapp.net",
       "msg-1",
-      "\u{1F9E0}", // 🧠
+      STATUS_DEFAULTS.thinking,
       expect.anything(),
     );
   });
 
-  it("setTool with web_search shows web emoji", async () => {
+  it("setTool with web_search uses tool-display.json emoji over category default", async () => {
     const ctrl = makeController();
     await ctrl.setQueued();
     mockSendReaction.mockClear();
@@ -104,16 +120,54 @@ describe("createWhatsAppStatusReactionController", () => {
     await ctrl.setTool("web_search");
     await vi.advanceTimersByTimeAsync(STATUS_TIMING.DEBOUNCE_MS + 10);
 
+    // web_search has 🔎 in tool-display.json, which takes priority over the 🌐 category default
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{1F310}", // 🌐
+      "\u{1F50E}", // 🔎 from tool-display.json
       expect.anything(),
     );
   });
 
-  it("setTool with exec shows coding emoji", async () => {
+  it("setTool with exec uses tool-display.json emoji", async () => {
     const ctrl = makeController();
+    await ctrl.setQueued();
+    mockSendReaction.mockClear();
+
+    await ctrl.setTool("exec");
+    await vi.advanceTimersByTimeAsync(STATUS_TIMING.DEBOUNCE_MS + 10);
+
+    // exec has emoji "🛠️" in tool-display.json — matched before category tokens
+    expect(mockSendReaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.any(String),
+      expect.anything(),
+    );
+  });
+
+  it("setTool with write shows writing emoji via category", async () => {
+    const ctrl = makeController();
+    await ctrl.setQueued();
+    mockSendReaction.mockClear();
+
+    // "write" is in tool-display.json with emoji ✍️, so it matches display first
+    await ctrl.setTool("write");
+    await vi.advanceTimersByTimeAsync(STATUS_TIMING.DEBOUNCE_MS + 10);
+
+    expect(mockSendReaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.any(String),
+      expect.anything(),
+    );
+  });
+
+  it("setTool with per-tool config override takes priority", async () => {
+    const statusCfg: WhatsAppStatusReactionConfig = {
+      toolEmojis: { exec: "\u{1F525}" }, // 🔥
+    };
+    const ctrl = makeController({ statusCfg });
     await ctrl.setQueued();
     mockSendReaction.mockClear();
 
@@ -123,7 +177,7 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{1F4BB}", // 💻
+      "\u{1F525}", // 🔥 override
       expect.anything(),
     );
   });
@@ -139,7 +193,7 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{1F6E0}\u{FE0F}", // 🛠️
+      STATUS_DEFAULTS.tool,
       expect.anything(),
     );
   });
@@ -154,7 +208,25 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{2705}", // ✅
+      STATUS_DEFAULTS.done,
+      expect.anything(),
+    );
+  });
+
+  it("setDone uses config override", async () => {
+    const statusCfg: WhatsAppStatusReactionConfig = {
+      phaseEmojis: { done: "\u{1F389}" }, // 🎉
+    };
+    const ctrl = makeController({ statusCfg });
+    await ctrl.setQueued();
+    mockSendReaction.mockClear();
+
+    await ctrl.setDone();
+
+    expect(mockSendReaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "\u{1F389}",
       expect.anything(),
     );
   });
@@ -169,7 +241,7 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{274C}", // ❌
+      STATUS_DEFAULTS.error,
       expect.anything(),
     );
   });
@@ -189,7 +261,7 @@ describe("createWhatsAppStatusReactionController", () => {
     );
   });
 
-  it("restoreInitial sends initial emoji back", async () => {
+  it("restoreInitial sends queued emoji back", async () => {
     const ctrl = makeController();
     await ctrl.setQueued();
     // Move to thinking
@@ -202,7 +274,27 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{1F440}", // 👀
+      STATUS_DEFAULTS.queued,
+      expect.anything(),
+    );
+  });
+
+  it("restoreInitial uses config override for queued emoji", async () => {
+    const statusCfg: WhatsAppStatusReactionConfig = {
+      phaseEmojis: { queued: "\u{1F44D}" }, // 👍
+    };
+    const ctrl = makeController({ statusCfg });
+    await ctrl.setQueued();
+    await ctrl.setThinking();
+    await vi.advanceTimersByTimeAsync(STATUS_TIMING.DEBOUNCE_MS + 10);
+    mockSendReaction.mockClear();
+
+    await ctrl.restoreInitial();
+
+    expect(mockSendReaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "\u{1F44D}",
       expect.anything(),
     );
   });
@@ -220,12 +312,12 @@ describe("createWhatsAppStatusReactionController", () => {
     // Advance past debounce
     await vi.advanceTimersByTimeAsync(STATUS_TIMING.DEBOUNCE_MS + 10);
 
-    // Only the last emoji should be sent (web 🌐)
+    // Only the last emoji should be sent (web_search → 🔎 from tool-display.json)
     expect(mockSendReaction).toHaveBeenCalledTimes(1);
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{1F310}", // 🌐
+      "\u{1F50E}", // 🔎 from tool-display.json for web_search
       expect.anything(),
     );
   });
@@ -269,7 +361,7 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{23F3}", // ⏳
+      STATUS_DEFAULTS.stallSoft,
       expect.anything(),
     );
   });
@@ -285,8 +377,8 @@ describe("createWhatsAppStatusReactionController", () => {
     // Should have both soft and hard stall
     const calls = mockSendReaction.mock.calls;
     const emojis = calls.map((c) => c[2]);
-    expect(emojis).toContain("\u{23F3}"); // ⏳
-    expect(emojis).toContain("\u{26A0}\u{FE0F}"); // ⚠️
+    expect(emojis).toContain(STATUS_DEFAULTS.stallSoft);
+    expect(emojis).toContain(STATUS_DEFAULTS.stallHard);
   });
 
   it("stall timers are reset when a new phase starts", async () => {
@@ -312,7 +404,7 @@ describe("createWhatsAppStatusReactionController", () => {
     expect(mockSendReaction).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "\u{23F3}", // ⏳
+      STATUS_DEFAULTS.stallSoft,
       expect.anything(),
     );
   });

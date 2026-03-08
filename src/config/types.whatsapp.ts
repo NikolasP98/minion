@@ -35,6 +35,26 @@ export type WhatsAppAckReactionConfig = {
   group?: "always" | "mentions" | "never";
 };
 
+export type WhatsAppStatusReactionPhaseEmojis = {
+  queued?: string;
+  thinking?: string;
+  writing?: string;
+  coding?: string;
+  web?: string;
+  tool?: string;
+  done?: string;
+  error?: string;
+  stallSoft?: string;
+  stallHard?: string;
+};
+
+export type WhatsAppStatusReactionConfig = {
+  /** Override emojis for each lifecycle phase. */
+  phaseEmojis?: WhatsAppStatusReactionPhaseEmojis;
+  /** Per-tool emoji overrides. Key = tool name, value = emoji. */
+  toolEmojis?: Record<string, string>;
+};
+
 export type WhatsAppConfig = {
   /** Optional per-account WhatsApp configuration (multi-account). */
   accounts?: Record<string, WhatsAppAccountConfig>;
@@ -97,6 +117,8 @@ export type WhatsAppConfig = {
   groups?: Record<string, WhatsAppGroupConfig>;
   /** Acknowledgment reaction sent immediately upon message receipt. */
   ackReaction?: WhatsAppAckReactionConfig;
+  /** Configurable emojis for the processing lifecycle (queued→thinking→tool→done). */
+  statusReactions?: WhatsAppStatusReactionConfig;
   /** Debounce window (ms) for batching rapid consecutive messages from the same sender (0 to disable). */
   debounceMs?: number;
   /** Heartbeat visibility settings for this channel. */
@@ -145,6 +167,8 @@ export type WhatsAppAccountConfig = {
   groups?: Record<string, WhatsAppGroupConfig>;
   /** Acknowledgment reaction sent immediately upon message receipt. */
   ackReaction?: WhatsAppAckReactionConfig;
+  /** Configurable emojis for the processing lifecycle (queued→thinking→tool→done). */
+  statusReactions?: WhatsAppStatusReactionConfig;
   /** Debounce window (ms) for batching rapid consecutive messages from the same sender (0 to disable). */
   debounceMs?: number;
   /** Heartbeat visibility settings for this account. */

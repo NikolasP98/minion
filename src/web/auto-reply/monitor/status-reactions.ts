@@ -1,23 +1,30 @@
 import { shouldAckReactionForWhatsApp } from "../../../channels/ack-reactions.js";
 import { logAckFailure } from "../../../channels/logging.js";
 import type { loadConfig } from "../../../config/config.js";
+import type { WhatsAppStatusReactionConfig } from "../../../config/types.whatsapp.js";
 import { logVerbose } from "../../../globals.js";
 import { sendReactionWhatsApp } from "../../outbound.js";
 import type { WebInboundMsg } from "../types.js";
 import { resolveGroupActivationFor } from "./group-activation.js";
 
 // ============================================================================
-// Emoji constants — same vocabulary as Discord status reactions
+// Default emoji constants — used when no config override is set
 // ============================================================================
 
-const WA_STATUS_THINKING = "\u{1F9E0}"; // 🧠
-const WA_STATUS_TOOL = "\u{1F6E0}\u{FE0F}"; // 🛠️
-const WA_STATUS_CODING = "\u{1F4BB}"; // 💻
-const WA_STATUS_WEB = "\u{1F310}"; // 🌐
-const WA_STATUS_DONE = "\u{2705}"; // ✅
-const WA_STATUS_ERROR = "\u{274C}"; // ❌
-const WA_STATUS_STALL_SOFT = "\u{23F3}"; // ⏳
-const WA_STATUS_STALL_HARD = "\u{26A0}\u{FE0F}"; // ⚠️
+const DEFAULTS = {
+  queued: "\u{1F440}", // 👀
+  thinking: "\u{1F9E0}", // 🧠
+  writing: "\u{270F}\u{FE0F}", // ✏️
+  coding: "\u{1F4BB}", // 💻
+  web: "\u{1F310}", // 🌐
+  tool: "\u{1F6E0}\u{FE0F}", // 🛠️
+  done: "\u{2705}", // ✅
+  error: "\u{274C}", // ❌
+  stallSoft: "\u{23F3}", // ⏳
+  stallHard: "\u{26A0}\u{FE0F}", // ⚠️
+} as const;
+
+export type StatusPhase = keyof typeof DEFAULTS;
 
 const DEBOUNCE_MS = 700;
 const STALL_SOFT_MS = 10_000;
@@ -26,24 +33,80 @@ const DONE_HOLD_MS = 1500;
 const ERROR_HOLD_MS = 2500;
 
 // ============================================================================
-// Tool → emoji resolution
+// Phase emoji resolution — config override → hardcoded default
 // ============================================================================
 
-const CODING_TOOL_TOKENS = ["exec", "process", "read", "write", "edit", "session_status", "bash"];
+function resolvePhaseEmoji(phase: StatusPhase, statusCfg?: WhatsAppStatusReactionConfig): string {
+  return statusCfg?.phaseEmojis?.[phase]?.trim() || DEFAULTS[phase];
+}
+
+// ============================================================================
+// Tool → emoji resolution (layered fallback)
+// ============================================================================
+
+const WRITING_TOOL_TOKENS = ["write", "edit", "apply_patch"];
+const CODING_TOOL_TOKENS = ["exec", "process", "session_status", "bash", "read"];
 const WEB_TOOL_TOKENS = ["web_search", "web-search", "web_fetch", "web-fetch", "browser"];
 
-function resolveToolStatusEmoji(toolName?: string): string {
+// Lazy-loaded tool display data for emoji fallbacks
+let toolDisplayEmojis: Record<string, string> | null = null;
+function getToolDisplayEmojis(): Record<string, string> {
+  if (!toolDisplayEmojis) {
+    try {
+      // Dynamic import not possible synchronously; pre-import at module level instead.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const data = require("../../../agents/tool-display.json") as {
+        tools?: Record<string, { emoji?: string }>;
+      };
+      toolDisplayEmojis = {};
+      for (const [name, entry] of Object.entries(data.tools ?? {})) {
+        if (entry.emoji) {
+          toolDisplayEmojis[name] = entry.emoji;
+        }
+      }
+    } catch {
+      toolDisplayEmojis = {};
+    }
+  }
+  return toolDisplayEmojis;
+}
+
+function resolveToolStatusEmoji(
+  toolName: string | undefined,
+  statusCfg?: WhatsAppStatusReactionConfig,
+): string {
   const normalized = toolName?.trim().toLowerCase() ?? "";
   if (!normalized) {
-    return WA_STATUS_TOOL;
+    return resolvePhaseEmoji("tool", statusCfg);
   }
+
+  // 1. Per-tool config override
+  if (statusCfg?.toolEmojis) {
+    const override = statusCfg.toolEmojis[normalized]?.trim();
+    if (override) {
+      return override;
+    }
+  }
+
+  // 2. tool-display.json emoji
+  const displayEmoji = getToolDisplayEmojis()[normalized];
+  if (displayEmoji) {
+    return displayEmoji;
+  }
+
+  // 3. Category token match
   if (WEB_TOOL_TOKENS.some((token) => normalized.includes(token))) {
-    return WA_STATUS_WEB;
+    return resolvePhaseEmoji("web", statusCfg);
+  }
+  if (WRITING_TOOL_TOKENS.some((token) => normalized.includes(token))) {
+    return resolvePhaseEmoji("writing", statusCfg);
   }
   if (CODING_TOOL_TOKENS.some((token) => normalized.includes(token))) {
-    return WA_STATUS_CODING;
+    return resolvePhaseEmoji("coding", statusCfg);
   }
-  return WA_STATUS_TOOL;
+
+  // 4. Generic tool fallback
+  return resolvePhaseEmoji("tool", statusCfg);
 }
 
 // ============================================================================
@@ -108,11 +171,11 @@ export function createWhatsAppStatusReactionController(params: {
   enabled: boolean;
   chatJid: string;
   messageId: string;
-  initialEmoji: string;
   fromMe: boolean;
   participant?: string;
   accountId?: string;
   verbose: boolean;
+  statusCfg?: WhatsAppStatusReactionConfig;
 }): WhatsAppStatusReactionController {
   let activeEmoji: string | null = null;
   let chain: Promise<void> = Promise.resolve();
@@ -122,6 +185,7 @@ export function createWhatsAppStatusReactionController(params: {
   let softStallTimer: ReturnType<typeof setTimeout> | null = null;
   let hardStallTimer: ReturnType<typeof setTimeout> | null = null;
 
+  const { statusCfg } = params;
   const logTarget = `${params.chatJid}/${params.messageId}`;
 
   const enqueue = (work: () => Promise<void>) => {
@@ -203,13 +267,13 @@ export function createWhatsAppStatusReactionController(params: {
       if (finished) {
         return;
       }
-      void requestEmoji(WA_STATUS_STALL_SOFT, { immediate: true });
+      void requestEmoji(resolvePhaseEmoji("stallSoft", statusCfg), { immediate: true });
     }, STALL_SOFT_MS);
     hardStallTimer = setTimeout(() => {
       if (finished) {
         return;
       }
-      void requestEmoji(WA_STATUS_STALL_HARD, { immediate: true });
+      void requestEmoji(resolvePhaseEmoji("stallHard", statusCfg), { immediate: true });
     }, STALL_HARD_MS);
   };
 
@@ -244,15 +308,17 @@ export function createWhatsAppStatusReactionController(params: {
     };
   }
 
+  const queuedEmoji = resolvePhaseEmoji("queued", statusCfg);
+
   return {
     setQueued: () => {
       scheduleStallTimers();
-      return requestEmoji(params.initialEmoji, { immediate: true });
+      return requestEmoji(queuedEmoji, { immediate: true });
     },
-    setThinking: () => setPhase(WA_STATUS_THINKING),
-    setTool: (toolName?: string) => setPhase(resolveToolStatusEmoji(toolName)),
-    setDone: () => setTerminal(WA_STATUS_DONE),
-    setError: () => setTerminal(WA_STATUS_ERROR),
+    setThinking: () => setPhase(resolvePhaseEmoji("thinking", statusCfg)),
+    setTool: (toolName?: string) => setPhase(resolveToolStatusEmoji(toolName, statusCfg)),
+    setDone: () => setTerminal(resolvePhaseEmoji("done", statusCfg)),
+    setError: () => setTerminal(resolvePhaseEmoji("error", statusCfg)),
     clear: async () => {
       if (!params.enabled) {
         return;
@@ -273,12 +339,14 @@ export function createWhatsAppStatusReactionController(params: {
       finished = true;
       clearStallTimers();
       clearPendingDebounce();
-      await requestEmoji(params.initialEmoji, { immediate: true });
+      await requestEmoji(queuedEmoji, { immediate: true });
     },
   };
 }
 
-// Re-export timing constants for testing
+// Re-export for testing and external use
+export const STATUS_DEFAULTS = DEFAULTS;
+
 export const STATUS_TIMING = {
   DEBOUNCE_MS,
   STALL_SOFT_MS,
