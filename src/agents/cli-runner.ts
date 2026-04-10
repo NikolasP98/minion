@@ -74,6 +74,17 @@ export async function runCliAgent(params: {
     throw new Error(`Unknown CLI backend: ${params.provider}`);
   }
   const backend = backendResolved.config;
+
+  // Audit log: warn whenever --dangerously-skip-permissions is active so operators
+  // can detect this in their logs. The flag is required for non-interactive (automated)
+  // Claude Code operation but should be a conscious operator choice, not a silent default.
+  const allArgs = [...(backend.args ?? []), ...(backend.resumeArgs ?? [])];
+  if (allArgs.includes("--dangerously-skip-permissions")) {
+    log.warn(
+      `[security] --dangerously-skip-permissions is active for provider=${params.provider} run=${params.runId}; Claude Code will bypass its built-in tool approval prompts`,
+    );
+  }
+
   const modelId = (params.model ?? "default").trim() || "default";
   const normalizedModel = normalizeCliModel(modelId, backend);
   const modelDisplay = `${params.provider}/${modelId}`;
