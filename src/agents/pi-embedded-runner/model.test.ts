@@ -391,4 +391,53 @@ describe("resolveModel", () => {
     expect(result.model).toBeUndefined();
     expect(result.error).toBe("Unknown model: google-antigravity/some-model");
   });
+
+  it("normalizes provider ID for registry lookup (z.ai → zai)", () => {
+    mockDiscoveredModel({
+      provider: "zai",
+      modelId: "zai-mini",
+      templateModel: { id: "zai-mini", provider: "zai" },
+    });
+
+    const result = resolveModel("z.ai", "zai-mini", "/tmp/agent");
+    expect(result.error).toBeUndefined();
+    expect(result.model).toBeDefined();
+  });
+
+  it("normalizes provider ID for inline model matching (qwen → qwen-portal)", () => {
+    const cfg = {
+      models: {
+        providers: {
+          "qwen-portal": {
+            baseUrl: "https://qwen.example.com",
+            models: [makeModel("qwen-turbo")],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = resolveModel("qwen", "qwen-turbo", "/tmp/agent", cfg);
+    expect(result.error).toBeUndefined();
+    expect(result.model).toBeDefined();
+    expect(result.model?.id).toBe("qwen-turbo");
+  });
+
+  it("normalizes provider for fallback model from config (kimi-code → kimi-coding)", () => {
+    const cfg = {
+      models: {
+        providers: {
+          "kimi-coding": {
+            baseUrl: "https://kimi.example.com",
+            models: [],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = resolveModel("kimi-code", "kimi-lite", "/tmp/agent", cfg);
+    expect(result.error).toBeUndefined();
+    expect(result.model).toBeDefined();
+    expect(result.model?.provider).toBe("kimi-coding");
+    expect(result.model?.id).toBe("kimi-lite");
+  });
 });

@@ -11,6 +11,8 @@
  * @module
  */
 
+import { normalizeModelRef } from "../../agents/models/model-selection.js";
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type MessageComplexity = "simple" | "moderate" | "complex";
@@ -869,7 +871,11 @@ function classifyMessageCore(message: string, maxSimple: number): MessageComplex
 // ── Router ───────────────────────────────────────────────────────────────────
 
 /**
- * Parse a "provider/model" string into its parts.
+ * Parse a "provider/model" string into its parts, normalizing both the
+ * provider ID and model ID so that aliases and alternate provider names
+ * (e.g. "z.ai" → "zai", "opus-4.5" → "claude-opus-4-5") are resolved
+ * consistently with the core model-selection pipeline.
+ *
  * Returns undefined if the string is empty or missing the slash.
  */
 function parseModelRef(ref: string | undefined): { provider: string; model: string } | undefined {
@@ -880,7 +886,10 @@ function parseModelRef(ref: string | undefined): { provider: string; model: stri
   if (slash < 1) {
     return undefined;
   }
-  return { provider: ref.slice(0, slash), model: ref.slice(slash + 1) };
+  const provider = ref.slice(0, slash);
+  const model = ref.slice(slash + 1);
+  const normalized = normalizeModelRef(provider, model);
+  return { provider: normalized.provider, model: normalized.model };
 }
 
 /**

@@ -6,7 +6,7 @@ import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { buildModelAliasLines } from "../models/model-alias-lines.js";
 import { normalizeModelCompat } from "../models/model-compat.js";
 import { resolveForwardCompatModel } from "../models/model-forward-compat.js";
-import { normalizeProviderId } from "../models/model-selection.js";
+import { findNormalizedProviderValue, normalizeProviderId } from "../models/model-selection.js";
 import {
   discoverAuthStorage,
   discoverModels,
@@ -54,11 +54,11 @@ export function resolveModel(
   const resolvedAgentDir = agentDir ?? resolveOpenClawAgentDir();
   const authStorage = discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = discoverModels(authStorage, resolvedAgentDir);
-  const model = modelRegistry.find(provider, modelId) as Model<Api> | null;
+  const normalizedProvider = normalizeProviderId(provider);
+  const model = modelRegistry.find(normalizedProvider, modelId) as Model<Api> | null;
   if (!model) {
     const providers = cfg?.models?.providers ?? {};
     const inlineModels = buildInlineProviderModels(providers);
-    const normalizedProvider = normalizeProviderId(provider);
     const inlineMatch = inlineModels.find(
       (entry) => normalizeProviderId(entry.provider) === normalizedProvider && entry.id === modelId,
     );
@@ -72,17 +72,17 @@ export function resolveModel(
     }
     // Forward-compat fallbacks must be checked BEFORE the generic providerCfg fallback.
     // Otherwise, configured providers can default to a generic API and break specific transports.
-    const forwardCompat = resolveForwardCompatModel(provider, modelId, modelRegistry);
+    const forwardCompat = resolveForwardCompatModel(normalizedProvider, modelId, modelRegistry);
     if (forwardCompat) {
       return { model: forwardCompat, authStorage, modelRegistry };
     }
-    const providerCfg = providers[provider];
+    const providerCfg = findNormalizedProviderValue(providers, provider);
     if (providerCfg || modelId.startsWith("mock-")) {
       const fallbackModel: Model<Api> = normalizeModelCompat({
         id: modelId,
         name: modelId,
         api: providerCfg?.api ?? "openai-responses",
-        provider,
+        provider: normalizedProvider,
         baseUrl: providerCfg?.baseUrl,
         reasoning: false,
         input: ["text"],

@@ -638,3 +638,60 @@ describe("session pinning", () => {
     expect(pin!.complexity).toBe("complex");
   });
 });
+
+// ── Provider-prefixed model ID normalization ─────────────────────────────────
+
+describe("routeMessage normalizes provider-prefixed model IDs", () => {
+  it("normalizes z.ai provider prefix in fastModel", () => {
+    const result = routeMessage({
+      message: "hey",
+      routing: {
+        enabled: true,
+        fastModel: "z.ai/zai-mini",
+        localModel: "ollama/gemma3:12b",
+      },
+    });
+    expect(result?.provider).toBe("zai");
+    expect(result?.model).toBe("zai-mini");
+  });
+
+  it("normalizes qwen provider prefix in localModel", () => {
+    const result = routeMessage({
+      message: "show me the logs",
+      routing: {
+        enabled: true,
+        fastModel: "ollama/small",
+        localModel: "qwen/qwen-turbo",
+      },
+    });
+    expect(result?.provider).toBe("qwen-portal");
+    expect(result?.model).toBe("qwen-turbo");
+  });
+
+  it("normalizes Anthropic model aliases in personaModels", () => {
+    const result = routeMessage({
+      message: "hello",
+      routing: {
+        enabled: true,
+        fastModel: "ollama/small",
+        personaModels: { Researcher: "anthropic/opus-4.5" },
+      },
+      currentPersona: "Researcher",
+    });
+    expect(result?.provider).toBe("anthropic");
+    expect(result?.model).toBe("claude-opus-4-5");
+  });
+
+  it("normalizes kimi-code provider prefix in ecoModel", () => {
+    const result = routeMessage({
+      message: "hi",
+      routing: {
+        enabled: true,
+        fastModel: "ollama/small",
+        ecoModel: "kimi-code/kimi-lite",
+      },
+    });
+    expect(result?.provider).toBe("kimi-coding");
+    expect(result?.model).toBe("kimi-lite");
+  });
+});
