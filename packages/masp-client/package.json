@@ -1,0 +1,21 @@
+{
+  "name": "@nikolasp98/masp-client",
+  "version": "0.1.0",
+  "description": "MINION App Server Protocol (MASP) client types — v0 baseline spec",
+  "keywords": [
+    "masp",
+    "minion",
+    "protocol",
+    "websocket"
+  ],
+  "license": "AGPL-3.0",
+  "files": [
+    "src",
+    "docs"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/protocol/v0.ts",
+    "./v0": "./src/protocol/v0.ts"
+  }
+}
