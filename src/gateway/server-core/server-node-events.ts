@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
+import { getRedisClient, mkKey } from "../../infra/redis.js";
 import { normalizeChannelId } from "../../channels/plugins/index.js";
 import { agentCommand } from "../../cli/commands/agent.js";
 import { createOutboundSendDeps } from "../../cli/outbound-send-deps.js";
@@ -24,8 +25,10 @@ import type { NodeEvent, NodeEventContext } from "./server-node-events-types.js"
 
 const MAX_EXEC_EVENT_OUTPUT_CHARS = 180;
 const VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS = 1500;
+const VOICE_TRANSCRIPT_DEDUPE_WINDOW_SECS = Math.ceil(VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS / 1000);
 const MAX_RECENT_VOICE_TRANSCRIPTS = 200;
 const AGENT_REQUEST_DEDUPE_WINDOW_MS = 2000;
+const AGENT_REQUEST_DEDUPE_WINDOW_SECS = Math.ceil(AGENT_REQUEST_DEDUPE_WINDOW_MS / 1000);
 const MAX_RECENT_AGENT_REQUESTS = 200;
 
 const recentVoiceTranscripts = new Map<string, { fingerprint: string; ts: number }>();
@@ -73,26 +76,46 @@ function resolveVoiceTranscriptFingerprint(obj: Record<string, unknown>, text: s
   return `text:${text}`;
 }
 
-function shouldDropDuplicateVoiceTranscript(params: {
+async function shouldDropDuplicateVoiceTranscript(params: {
   sessionKey: string;
   fingerprint: string;
   now: number;
-}): boolean {
-  const previous = recentVoiceTranscripts.get(params.sessionKey);
+}): Promise<boolean> {
+  const { sessionKey, fingerprint, now } = params;
+
+  // Local in-memory fast path (zero latency, single-instance dedup)
+  const previous = recentVoiceTranscripts.get(sessionKey);
   if (
     previous &&
-    previous.fingerprint === params.fingerprint &&
-    params.now - previous.ts <= VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS
+    previous.fingerprint === fingerprint &&
+    now - previous.ts <= VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS
   ) {
     return true;
   }
-  recentVoiceTranscripts.set(params.sessionKey, {
-    fingerprint: params.fingerprint,
-    ts: params.now,
-  });
+
+  // Cross-instance dedup via Redis SET NX — succeeds only on the first occurrence
+  const rc = getRedisClient();
+  if (rc) {
+    const result = await rc
+      .set(
+        mkKey("dedup", "voice", sessionKey, fingerprint),
+        "1",
+        "EX",
+        VOICE_TRANSCRIPT_DEDUPE_WINDOW_SECS,
+        "NX",
+      )
+      .catch(() => null); // fail open: never block on Redis errors
+    if (result === null) {
+      // Another instance already processed this fingerprint
+      recentVoiceTranscripts.set(sessionKey, { fingerprint, ts: now });
+      return true;
+    }
+  }
+
+  recentVoiceTranscripts.set(sessionKey, { fingerprint, ts: now });
 
   if (recentVoiceTranscripts.size > MAX_RECENT_VOICE_TRANSCRIPTS) {
-    const cutoff = params.now - VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS * 2;
+    const cutoff = now - VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS * 2;
     for (const [key, value] of recentVoiceTranscripts) {
       if (value.ts < cutoff) {
         recentVoiceTranscripts.delete(key);
@@ -124,26 +147,46 @@ function resolveAgentRequestFingerprint(
   return `session:${sessionKey}|msg:${message.slice(0, 200)}`;
 }
 
-function shouldDropDuplicateAgentRequest(params: {
+async function shouldDropDuplicateAgentRequest(params: {
   sessionKey: string;
   fingerprint: string;
   now: number;
-}): boolean {
-  const previous = recentAgentRequests.get(params.sessionKey);
+}): Promise<boolean> {
+  const { sessionKey, fingerprint, now } = params;
+
+  // Local in-memory fast path (zero latency, single-instance dedup)
+  const previous = recentAgentRequests.get(sessionKey);
   if (
     previous &&
-    previous.fingerprint === params.fingerprint &&
-    params.now - previous.ts <= AGENT_REQUEST_DEDUPE_WINDOW_MS
+    previous.fingerprint === fingerprint &&
+    now - previous.ts <= AGENT_REQUEST_DEDUPE_WINDOW_MS
   ) {
     return true;
   }
-  recentAgentRequests.set(params.sessionKey, {
-    fingerprint: params.fingerprint,
-    ts: params.now,
-  });
+
+  // Cross-instance dedup via Redis SET NX — succeeds only on the first occurrence
+  const rc = getRedisClient();
+  if (rc) {
+    const result = await rc
+      .set(
+        mkKey("dedup", "agent-req", sessionKey, fingerprint),
+        "1",
+        "EX",
+        AGENT_REQUEST_DEDUPE_WINDOW_SECS,
+        "NX",
+      )
+      .catch(() => null); // fail open: never block on Redis errors
+    if (result === null) {
+      // Another instance already processed this fingerprint
+      recentAgentRequests.set(sessionKey, { fingerprint, ts: now });
+      return true;
+    }
+  }
+
+  recentAgentRequests.set(sessionKey, { fingerprint, ts: now });
 
   if (recentAgentRequests.size > MAX_RECENT_AGENT_REQUESTS) {
-    const cutoff = params.now - AGENT_REQUEST_DEDUPE_WINDOW_MS * 2;
+    const cutoff = now - AGENT_REQUEST_DEDUPE_WINDOW_MS * 2;
     for (const [key, value] of recentAgentRequests) {
       if (value.ts < cutoff) {
         recentAgentRequests.delete(key);
@@ -311,7 +354,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
       const { storePath, entry, canonicalKey } = loadSessionEntry(sessionKey);
       const now = Date.now();
       const fingerprint = resolveVoiceTranscriptFingerprint(obj, text);
-      if (shouldDropDuplicateVoiceTranscript({ sessionKey: canonicalKey, fingerprint, now })) {
+      if (await shouldDropDuplicateVoiceTranscript({ sessionKey: canonicalKey, fingerprint, now })) {
         return;
       }
       const sessionId = entry?.sessionId ?? randomUUID();
@@ -428,7 +471,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         message,
       );
       if (
-        shouldDropDuplicateAgentRequest({
+        await shouldDropDuplicateAgentRequest({
           sessionKey: canonicalKey,
           fingerprint: agentReqFingerprint,
           now,

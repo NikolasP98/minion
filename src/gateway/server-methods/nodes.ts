@@ -1,5 +1,6 @@
 import { loadConfig } from "../../config/config.js";
 import { listDevicePairing } from "../../infra/device-pairing.js";
+import { getRedisClient, mkKey } from "../../infra/redis.js";
 import {
   approveNodePairing,
   listNodePairing,
@@ -42,6 +43,7 @@ import type { GatewayRequestHandlers } from "./types.js";
 const NODE_WAKE_RECONNECT_WAIT_MS = 3_000;
 const NODE_WAKE_RECONNECT_POLL_MS = 150;
 const NODE_WAKE_THROTTLE_MS = 15_000;
+const NODE_WAKE_THROTTLE_SECS = Math.ceil(NODE_WAKE_THROTTLE_MS / 1000);
 
 type NodeWakeState = {
   lastWakeAtMs: number;
@@ -75,6 +77,21 @@ async function maybeWakeNodeWithApns(nodeId: string): Promise<boolean> {
   const now = Date.now();
   if (state.lastWakeAtMs > 0 && now - state.lastWakeAtMs < NODE_WAKE_THROTTLE_MS) {
     return true;
+  }
+
+  // Cross-instance throttle: use Redis SET NX so only one gateway replica
+  // sends the APNS wake within the throttle window.
+  const rc = getRedisClient();
+  if (rc) {
+    const result = await rc
+      .set(mkKey("apns", "throttle", nodeId), "1", "EX", NODE_WAKE_THROTTLE_SECS, "NX")
+      .catch(() => null);
+    if (result === null) {
+      // Another instance already acquired the throttle slot — skip this wake.
+      state.lastWakeAtMs = now;
+      return true;
+    }
+    // result === "OK" — we hold the slot, proceed to send wake.
   }
 
   state.inFlight = (async () => {
