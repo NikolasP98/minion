@@ -171,7 +171,7 @@ export function createOpenClawTools(options?: {
     ...(webSearchTool ? [webSearchTool] : []),
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),
-    ...createKnowledgeGraphTools(kgSession),
+    ...createKnowledgeGraphTools(kgSession, agentId),
   ];
 
   const pluginTools = resolvePluginTools({

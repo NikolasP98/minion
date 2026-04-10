@@ -317,7 +317,7 @@ export function searchObjects(query: string, type?: ObjectType): MemoryObject[] 
   db.exec("INSERT INTO memory_objects_fts(memory_objects_fts) VALUES('rebuild')");
   // Sanitize: remove FTS5 operator characters (quotes, wildcards, hyphens, dots)
   // Hyphens are FTS5 NOT operators; dots cause syntax errors.
-  const sanitized = query.replace(/['"*\-.]/g, " ").trim();
+  const sanitized = query.replace(/['"*/\-.]/g, " ").trim();
   if (!sanitized) {
     return [];
   }
@@ -498,7 +498,7 @@ export function searchObjectsInDb(
   type?: ObjectType,
 ): MemoryObject[] {
   db.exec("INSERT INTO memory_objects_fts(memory_objects_fts) VALUES('rebuild')");
-  const sanitized = query.replace(/['"*\-.]/g, " ").trim();
+  const sanitized = query.replace(/['"*/\-.]/g, " ").trim();
   if (!sanitized) {
     return [];
   }

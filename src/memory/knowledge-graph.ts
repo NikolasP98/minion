@@ -246,6 +246,117 @@ export class KnowledgeGraphSession {
   }
 }
 
+// ── NamespacedKnowledgeGraphSession ───────────────────────────────────────────
+
+/**
+ * Defense-in-depth namespace wrapper over KnowledgeGraphSession (MIN-384).
+ *
+ * Enforces agent-scoped namespace prefixes at the tool layer so cross-agent
+ * memory leakage is prevented even if the underlying DB is accidentally shared
+ * between agents (e.g. via misconfiguration).
+ *
+ * Namespace scheme: `{agentId}/{type}/{label}` is stored in the DB label field.
+ * Results are filtered to only return entries matching this agent's namespace.
+ * Labels returned to callers have the `{agentId}/{type}/` prefix stripped.
+ *
+ * Migration note: Existing entries without the namespace prefix were written
+ * before MIN-384 and live in per-agent KG DB files that are already isolated at
+ * the file-system level (KnowledgeGraphSession.forAgent). Those entries are not
+ * returned by the namespaced session — they remain accessible via the raw
+ * KnowledgeGraphSession if backward-compat reads are needed. New writes always
+ * carry the prefix.
+ */
+export class NamespacedKnowledgeGraphSession {
+  constructor(
+    private readonly inner: KnowledgeGraphSession | null,
+    readonly agentId: string,
+  ) {}
+
+  /** Returns the stored prefix for a given object type: `{agentId}/{type}/` */
+  nsPrefix(type: ObjectType): string {
+    return `${this.agentId}/${type}/`;
+  }
+
+  private prefixLabel(type: ObjectType, label: string): string {
+    return `${this.nsPrefix(type)}${label}`;
+  }
+
+  private isOwned(obj: MemoryObject): boolean {
+    return obj.label.startsWith(this.nsPrefix(obj.type));
+  }
+
+  private expose(obj: MemoryObject): MemoryObject {
+    const ns = this.nsPrefix(obj.type);
+    return { ...obj, label: obj.label.startsWith(ns) ? obj.label.slice(ns.length) : obj.label };
+  }
+
+  remember(params: {
+    label: string;
+    type: ObjectType;
+    data?: Record<string, unknown>;
+    ttl?: number | null;
+  }): string {
+    const prefixed = { ...params, label: this.prefixLabel(params.type, params.label) };
+    return this.inner ? this.inner.remember(prefixed) : remember(prefixed);
+  }
+
+  recallEntity(name: string): MemoryObject | null {
+    const prefixedName = this.prefixLabel("entity", name);
+    const result = this.inner ? this.inner.recallEntity(prefixedName) : recallEntity(prefixedName);
+    if (!result || !this.isOwned(result)) {
+      return null;
+    }
+    return this.expose(result);
+  }
+
+  findRelated(entityId: string, relType?: RelType): MemoryObject[] {
+    const results = this.inner
+      ? this.inner.findRelated(entityId, relType)
+      : findRelated(entityId, relType);
+    return results.filter((obj) => this.isOwned(obj)).map((obj) => this.expose(obj));
+  }
+
+  forget(id: string): void {
+    const obj = this.inner ? this.inner.getMemoryObject(id) : getMemoryObject(id);
+    // Block cross-agent deletion: only delete if the entry belongs to this agent
+    if (!obj || !this.isOwned(obj)) {
+      return;
+    }
+    if (this.inner) {
+      this.inner.forget(id);
+    } else {
+      forget(id);
+    }
+  }
+
+  searchFacts(query: string): MemoryObject[] {
+    const results = this.inner ? this.inner.searchFacts(query) : searchFacts(query);
+    // Post-filter: only return facts owned by this agent's namespace
+    return results.filter((obj) => this.isOwned(obj)).map((obj) => this.expose(obj));
+  }
+
+  linkObjects(fromId: string, toId: string, relType: RelType, weight = 1.0): void {
+    if (this.inner) {
+      this.inner.linkObjects(fromId, toId, relType, weight);
+    } else {
+      linkObjects(fromId, toId, relType, weight);
+    }
+  }
+
+  listByType(type: ObjectType): MemoryObject[] {
+    const results = this.inner ? this.inner.listByType(type) : listByType(type);
+    return results.filter((obj) => this.isOwned(obj)).map((obj) => this.expose(obj));
+  }
+
+  getMemoryObject(id: string): MemoryObject | null {
+    const obj = this.inner ? this.inner.getMemoryObject(id) : getMemoryObject(id);
+    if (!obj || !this.isOwned(obj)) {
+      return null;
+    }
+    return this.expose(obj);
+  }
+}
+
 // ── Agent tool definitions ─────────────────────────────────────────────────────
 
 const RememberSchema = Type.Object({
@@ -300,10 +411,26 @@ const SearchFactsSchema = Type.Object({
 
 /**
  * Create the set of knowledge graph agent tools.
- * When a `session` is provided, all operations use the session's isolated DB.
- * When omitted, falls back to the module-level singleton (CLI / legacy path).
+ *
+ * When `agentId` is provided, all operations are routed through a
+ * `NamespacedKnowledgeGraphSession` that enforces `{agentId}/{type}/` namespace
+ * prefixes at the tool layer (MIN-384). This prevents cross-agent memory leakage
+ * even if the underlying DB is shared.
+ *
+ * When `session` is provided without `agentId`, operations use the session's
+ * isolated DB directly (no namespace prefix — legacy / test path).
+ *
+ * When neither is provided, falls back to the module-level singleton (CLI path).
  */
-export function createKnowledgeGraphTools(session?: KnowledgeGraphSession): AnyAgentTool[] {
+export function createKnowledgeGraphTools(
+  session?: KnowledgeGraphSession,
+  agentId?: string,
+): AnyAgentTool[] {
+  // Apply namespace enforcement when agentId is known (MIN-384: tool-layer isolation)
+  const ns: NamespacedKnowledgeGraphSession | undefined = agentId
+    ? new NamespacedKnowledgeGraphSession(session ?? null, agentId)
+    : undefined;
+
   const rememberTool: AnyAgentTool = {
     label: "Remember",
     name: "remember",
@@ -321,9 +448,11 @@ export function createKnowledgeGraphTools(session?: KnowledgeGraphSession): AnyA
       if (!label) {
         return textResult("Error: label is required");
       }
-      const objectId = session
-        ? session.remember({ label, type, data })
-        : remember({ label, type, data });
+      const objectId = ns
+        ? ns.remember({ label, type, data })
+        : session
+          ? session.remember({ label, type, data })
+          : remember({ label, type, data });
       return textResult(objectId ? `Stored ${type} with id: ${objectId}` : "DB not ready");
     },
   };
@@ -337,7 +466,11 @@ export function createKnowledgeGraphTools(session?: KnowledgeGraphSession): AnyA
     execute: async (_id, args) => {
       const params = args as Record<string, unknown>;
       const name = (params["name"] as string | undefined) ?? "";
-      const entity = session ? session.recallEntity(name) : recallEntity(name);
+      const entity = ns
+        ? ns.recallEntity(name)
+        : session
+          ? session.recallEntity(name)
+          : recallEntity(name);
       if (!entity) {
         return textResult(`No entity found for: ${name}`);
       }
@@ -357,9 +490,11 @@ export function createKnowledgeGraphTools(session?: KnowledgeGraphSession): AnyA
       const params = args as Record<string, unknown>;
       const entityId = (params["entityId"] as string | undefined) ?? "";
       const relType = params["relType"] as RelType | undefined;
-      const related = session
-        ? session.findRelated(entityId, relType)
-        : findRelated(entityId, relType);
+      const related = ns
+        ? ns.findRelated(entityId, relType)
+        : session
+          ? session.findRelated(entityId, relType)
+          : findRelated(entityId, relType);
       if (related.length === 0) {
         return textResult("No related objects found.");
       }
@@ -380,7 +515,9 @@ export function createKnowledgeGraphTools(session?: KnowledgeGraphSession): AnyA
       if (!objectId) {
         return textResult("Error: id is required");
       }
-      if (session) {
+      if (ns) {
+        ns.forget(objectId);
+      } else if (session) {
         session.forget(objectId);
       } else {
         forget(objectId);
@@ -401,7 +538,11 @@ export function createKnowledgeGraphTools(session?: KnowledgeGraphSession): AnyA
       if (!query) {
         return textResult("Error: query is required");
       }
-      const facts = session ? session.searchFacts(query) : searchFacts(query);
+      const facts = ns
+        ? ns.searchFacts(query)
+        : session
+          ? session.searchFacts(query)
+          : searchFacts(query);
       if (facts.length === 0) {
         return textResult(`No facts found for: ${query}`);
       }

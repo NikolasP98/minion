@@ -267,8 +267,9 @@ export async function createOpenClawTools(
     // Build options and call factory
     let result: unknown;
     if (id === "knowledge_graph") {
-      // KG factory takes a positional KnowledgeGraphSession argument.
-      result = factory(ctx.kgSession);
+      // KG factory takes a positional KnowledgeGraphSession argument and agentId for namespace
+      // enforcement (MIN-384: agent-scoped namespace prefix at tool layer).
+      result = factory(ctx.kgSession, ctx.agentId);
     } else {
       const factoryOpts = buildToolOptions(id, ctx);
       result = factory(factoryOpts);
