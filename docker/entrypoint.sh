@@ -62,6 +62,13 @@ else
   log "Warning: Default config not found at $DEFAULT_CONFIG"
 fi
 
+# Pin the state directory so the node process always writes to the mounted volume
+# (/home/node/.minion) regardless of how HOME is resolved inside the container.
+# This guards against the case where HOME resolves to /root (e.g. running the
+# image without docker-compose's HOME: /home/node override).
+export MINION_STATE_DIR="/home/node/.minion"
+log "Profile root pinned to MINION_STATE_DIR=$MINION_STATE_DIR"
+
 # Drop privileges to node user and execute the main command
 log "Dropping privileges to node user (uid 1000)"
 
