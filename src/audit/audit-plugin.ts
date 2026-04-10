@@ -80,7 +80,7 @@ function detectViolations(
   }
 
   // External transfer without explicit/implicit consent for sensitive categories
-  const sensitiveCategories: DataCategory[] = new Set([
+  const sensitiveCategories = new Set<DataCategory>([
     "credentials",
     "user_identity",
     "user_location",
