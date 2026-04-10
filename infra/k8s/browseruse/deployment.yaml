@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browseruse
+  namespace: minion
+  labels:
+    app: browseruse
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: browseruse
+  template:
+    metadata:
+      labels:
+        app: browseruse
+        version: v1
+      annotations:
+        # Restrict syscalls; Chromium needs a profile that allows clone/futex etc.
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+      # No access to cluster-internal DNS/services beyond outbound HTTP/HTTPS.
+      # A NetworkPolicy (separate) should restrict egress to port 80/443 only.
+      containers:
+        - name: browseruse
+          image: ghcr.io/nikolasp98/minion-browseruse:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minion-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: BROWSERUSE_MAX_STEPS
+              value: "10"
+            - name: BROWSERUSE_TIMEOUT_SECONDS
+              value: "30"
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false  # Chromium needs writable tmp
+            runAsNonRoot: true
+            runAsUser: 1000

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: browseruse
+  namespace: minion
+  labels:
+    app: browseruse
+spec:
+  type: ClusterIP
+  selector:
+    app: browseruse
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
