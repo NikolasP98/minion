@@ -82,16 +82,42 @@ function extractErrorField(value: unknown): string | undefined {
   return normalizeToolErrorText(status);
 }
 
+/**
+ * Resolve the effective content array for an MCP tool result, merging
+ * `structuredContent` when `content` is absent.
+ *
+ * MCP tool results may carry:
+ * - `content`: array of text/image blocks (primary for LLM consumption)
+ * - `structuredContent`: JSON object (equivalent structured representation)
+ *
+ * Both fields are valid per the MCP spec. When `content` is absent and
+ * `structuredContent` is present, synthesise a text block from the
+ * JSON-serialised value so downstream extraction functions don't silently
+ * return nothing. When both are present, `content` already carries the
+ * human-readable representation so no merge is required.
+ */
+function resolveEffectiveContent(record: Record<string, unknown>): unknown[] | null {
+  if (Array.isArray(record.content)) {
+    return record.content;
+  }
+  const sc = record.structuredContent;
+  if (sc === undefined || sc === null) {
+    return null;
+  }
+  const text = typeof sc === "string" ? sc : JSON.stringify(sc);
+  return text ? [{ type: "text", text }] : null;
+}
+
 export function sanitizeToolResult(result: unknown): unknown {
   if (!result || typeof result !== "object") {
     return result;
   }
   const record = result as Record<string, unknown>;
-  const content = Array.isArray(record.content) ? record.content : null;
-  if (!content) {
+  const effectiveContent = resolveEffectiveContent(record);
+  if (!effectiveContent) {
     return record;
   }
-  const sanitized = content.map((item) => {
+  const sanitized = effectiveContent.map((item) => {
     if (!item || typeof item !== "object") {
       return item;
     }
@@ -117,7 +143,8 @@ export function extractToolResultText(result: unknown): string | undefined {
     return undefined;
   }
   const record = result as Record<string, unknown>;
-  const texts = collectTextContentBlocks(record.content)
+  const effective = resolveEffectiveContent(record);
+  const texts = collectTextContentBlocks(effective)
     .map((item) => {
       const trimmed = item.trim();
       return trimmed ? trimmed : undefined;

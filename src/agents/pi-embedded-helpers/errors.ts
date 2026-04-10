@@ -606,6 +606,14 @@ const ERROR_PATTERNS = {
     "credit balance",
     "plans & billing",
     "insufficient balance",
+    // X3: Additional billing-classified 400 patterns from provider APIs.
+    // Providers like Groq and OpenAI return HTTP 400 with billing error types/codes.
+    "billing_error",
+    "billing_hard_limit",
+    "billing_soft_limit",
+    "billing_not_active",
+    "insufficient_quota",
+    /\bbudget.{0,30}(?:exceeded?|reached|exhausted)\b/i,
   ],
   auth: [
     /invalid[_ ]?api[_ ]?key/,
@@ -668,6 +676,21 @@ export function isBillingErrorMessage(raw: string): boolean {
   }
   if (matchesErrorPatterns(value, ERROR_PATTERNS.billing)) {
     return true;
+  }
+  // X3: Detect HTTP 400 responses whose body contains billing-related content.
+  // Some providers (Groq, OpenAI) return 400 for billing errors rather than 402.
+  const httpStatus = extractLeadingHttpStatus(raw);
+  if (httpStatus?.code === 400) {
+    const body = httpStatus.rest.toLowerCase();
+    if (
+      body.includes("billing") ||
+      body.includes("credits") ||
+      body.includes("payment") ||
+      body.includes("quota") ||
+      body.includes("budget")
+    ) {
+      return true;
+    }
   }
   if (!BILLING_ERROR_HEAD_RE.test(raw)) {
     return false;

@@ -205,21 +205,32 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
 
     const assistant = msg as Extract<AgentMessage, { role: "assistant" }>;
 
-    // Skip tool call extraction for aborted or errored assistant messages.
-    // When stopReason is "error" or "aborted", the tool_use blocks may be incomplete
-    // (e.g., partialJson: true) and should not have synthetic tool_results created.
-    // Creating synthetic results for incomplete tool calls causes API 400 errors:
-    // "unexpected tool_use_id found in tool_result blocks"
-    // See: https://github.com/minion/minion/issues/4597
+    // X7: Preserve interrupted tool-call turns in conversation history.
+    // For aborted/errored assistant messages, tool_use blocks may be incomplete
+    // (partialJson: true). Strip those incomplete blocks first, then still collect
+    // and pair any well-formed tool results that follow (e.g. synthetic results
+    // written by flushPendingToolResults during teardown). Without this step the
+    // following tool results are treated as orphans and dropped, breaking context.
     const stopReason = (assistant as { stopReason?: string }).stopReason;
-    if (stopReason === "error" || stopReason === "aborted") {
-      out.push(msg);
-      continue;
+    const interrupted = stopReason === "error" || stopReason === "aborted";
+    let effectiveAssistant = assistant;
+    if (interrupted) {
+      const sanitized = sanitizeToolCallInputs([assistant]);
+      if (sanitized.length === 0) {
+        // All content was stripped — nothing to emit; skip entirely.
+        changed = true;
+        continue;
+      }
+      const sanitizedMsg = sanitized[0] as Extract<AgentMessage, { role: "assistant" }>;
+      if (sanitizedMsg !== assistant) {
+        effectiveAssistant = sanitizedMsg;
+        changed = true;
+      }
     }
 
-    const toolCalls = extractToolCallsFromAssistant(assistant);
+    const toolCalls = extractToolCallsFromAssistant(effectiveAssistant);
     if (toolCalls.length === 0) {
-      out.push(msg);
+      out.push(effectiveAssistant);
       continue;
     }
 
@@ -266,7 +277,7 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
       }
     }
 
-    out.push(msg);
+    out.push(effectiveAssistant);
 
     if (spanResultsById.size > 0 && remainder.length > 0) {
       moved = true;

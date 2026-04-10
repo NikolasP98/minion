@@ -229,6 +229,27 @@ export function handleMessageEnd(
     rawThinking: extractAssistantThinking(assistantMessage),
   });
 
+  // X6: Deliver LLM errors to the streaming channel immediately.
+  // When stopReason is "error", emit the raw errorMessage via the agent event
+  // stream so consumers receive the error in real-time rather than relying on
+  // post-attempt payload delivery (which can be silently dropped if the run is
+  // retried with a different credential or if the caller never processes it).
+  const llmStopReason = (assistantMessage as { stopReason?: string }).stopReason;
+  if (llmStopReason === "error") {
+    const llmErrorMessage = (assistantMessage as { errorMessage?: string }).errorMessage ?? "";
+    if (llmErrorMessage) {
+      emitAgentEvent({
+        runId: ctx.params.runId,
+        stream: "assistant_error",
+        data: { errorMessage: llmErrorMessage, stopReason: "error" },
+      });
+      void ctx.params.onAgentEvent?.({
+        stream: "assistant_error",
+        data: { errorMessage: llmErrorMessage, stopReason: "error" },
+      });
+    }
+  }
+
   const text = resolveSilentReplyFallbackText({
     text: ctx.stripBlockTags(rawText, { thinking: false, final: false }),
     messagingToolSentTexts: ctx.state.messagingToolSentTexts,
