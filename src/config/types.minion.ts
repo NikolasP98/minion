@@ -1,5 +1,6 @@
 import type { AgentBinding, AgentsConfig } from "./types.agents.js";
 import type { ApprovalsConfig } from "./types.approvals.js";
+import type { AuditConfig } from "./types.audit.js";
 import type { AuthProvidersConfig } from "./types.auth-providers.js";
 import type { AuthConfig } from "./types.auth.js";
 import type { DiagnosticsConfig, LoggingConfig, SessionConfig, WebConfig } from "./types.base.js";
@@ -108,6 +109,8 @@ export type MinionConfig = {
   gateway?: GatewayConfig;
   memory?: MemoryConfig;
   security?: SecurityAutonomyConfig;
+  /** AudAgent Privacy Compliance Auditor (EU AI Act Article 50). */
+  audit?: AuditConfig;
 };
 
 export type ConfigValidationIssue = {
