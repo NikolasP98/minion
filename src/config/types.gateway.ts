@@ -353,4 +353,11 @@ export type GatewayConfig = {
    * If neither is set, the parse_screen tool is disabled.
    */
   omniparserUrl?: string;
+  /**
+   * BrowserUse service URL for the `browse_web` tool.
+   * Example: "http://browseruse:8080"
+   * When unset, the tool falls back to the BROWSERUSE_URL environment variable.
+   * If neither is set, the browse_web tool is disabled.
+   */
+  browseuseUrl?: string;
 };
