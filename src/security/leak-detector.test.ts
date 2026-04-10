@@ -17,7 +17,7 @@ describe("leak-detector", () => {
 
     describe("Anthropic keys", () => {
       it("redacts sk-ant- keys", () => {
-        const content = 'Authorization: sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-ABCDEF';
+        const content = "Authorization: sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-ABCDEF";
         const result = scanAndRedact(content);
         expect(result.hasLeaks).toBe(true);
         expect(result.redacted).toContain("[REDACTED:anthropic-api-key]");
@@ -62,7 +62,8 @@ describe("leak-detector", () => {
 
     describe("Bearer tokens", () => {
       it("redacts long Bearer tokens", () => {
-        const content = "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0";
+        const content =
+          "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0";
         const result = scanAndRedact(content);
         expect(result.hasLeaks).toBe(true);
         expect(result.redacted).toContain("[REDACTED:bearer-token]");
@@ -122,7 +123,7 @@ describe("leak-detector", () => {
 
     describe("Generic API key patterns", () => {
       it("redacts api_key=value", () => {
-        const content = 'api_key=sk1234567890abcdefghijklmnop';
+        const content = "api_key=sk1234567890abcdefghijklmnop";
         const result = scanAndRedact(content);
         expect(result.hasLeaks).toBe(true);
         expect(result.redacted).toContain("[REDACTED:");
@@ -181,6 +182,64 @@ describe("leak-detector", () => {
 
     it("returns false for empty content", () => {
       expect(hasCredentialPatterns("")).toBe(false);
+    });
+  });
+
+  describe("percent-encoding bypass prevention", () => {
+    // Regression tests for: credentials percent-encoded to evade pattern matching.
+    // e.g., `sk%2Dant%2D...` encodes `sk-ant-...` to bypass the anthropic-api-key regex.
+
+    it("detects Anthropic key with percent-encoded dashes", () => {
+      // sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+      const encoded = "sk%2Dant%2Dapi03%2DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+      const result = scanAndRedact(encoded);
+      expect(result.hasLeaks).toBe(true);
+      expect(result.matchedPatterns).toContain("anthropic-api-key");
+      expect(result.redacted).not.toContain("sk-ant-");
+    });
+
+    it("detects GitHub PAT with percent-encoded prefix", () => {
+      // ghp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789
+      const encoded = "ghp%5FAbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
+      const result = scanAndRedact(encoded);
+      expect(result.hasLeaks).toBe(true);
+      expect(result.matchedPatterns).toContain("github-pat");
+    });
+
+    it("detects connection string with percent-encoded credentials", () => {
+      // postgres://user:p@ssword@host/db → password has @ encoded as %40
+      const encoded = "postgres%3A%2F%2Fuser%3Ap%40ssword%40host%2Fdb";
+      const result = scanAndRedact(encoded);
+      expect(result.hasLeaks).toBe(true);
+      expect(result.matchedPatterns).toContain("connection-string");
+    });
+
+    it("detects Bearer token in percent-encoded Authorization header value", () => {
+      // Bearer AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCDE
+      const encoded = "Bearer%20AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCDE";
+      const result = scanAndRedact(encoded);
+      expect(result.hasLeaks).toBe(true);
+      expect(result.matchedPatterns).toContain("bearer-token");
+    });
+
+    it("still detects plain (non-encoded) credentials after this change", () => {
+      const plain = "sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+      const result = scanAndRedact(plain);
+      expect(result.hasLeaks).toBe(true);
+      expect(result.matchedPatterns).toContain("anthropic-api-key");
+    });
+
+    it("handles invalid percent sequences gracefully", () => {
+      // Incomplete percent encoding — should not throw
+      const bad = "sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2";
+      expect(() => scanAndRedact(bad)).not.toThrow();
+      const result = scanAndRedact(bad);
+      expect(result.hasLeaks).toBe(true);
+    });
+
+    it("hasCredentialPatterns detects percent-encoded credentials", () => {
+      const encoded = "sk%2Dant%2Dapi03%2DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+      expect(hasCredentialPatterns(encoded)).toBe(true);
     });
   });
 });

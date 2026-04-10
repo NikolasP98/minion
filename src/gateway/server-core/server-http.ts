@@ -262,7 +262,11 @@ export function createHooksRequestHandler(
       return false;
     }
 
-    if (url.searchParams.has("token")) {
+    // Reject tokens in query parameters to prevent them from appearing in
+    // server access logs. Check is case-insensitive to also catch ?TOKEN= or
+    // ?Token= variants. URLSearchParams decodes percent-encoded parameter names
+    // before comparison, so %74oken is correctly caught as "token".
+    if ([...url.searchParams.keys()].some((k) => k.toLowerCase() === "token")) {
       res.statusCode = 400;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end(
