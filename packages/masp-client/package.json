@@ -8,7 +8,7 @@
     "protocol",
     "websocket"
   ],
-  "license": "AGPL-3.0",
+  "license": "MIT",
   "files": [
     "src",
     "docs"
