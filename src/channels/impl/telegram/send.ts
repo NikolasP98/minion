@@ -11,6 +11,7 @@ import { logVerbose } from "../../../globals.js";
 import { recordChannelActivity } from "../../../infra/channel-activity.js";
 import { isDiagnosticFlagEnabled } from "../../../infra/diagnostic-flags.js";
 import { formatErrorMessage, formatUncaughtError } from "../../../infra/errors.js";
+import { resolveProxyUrl } from "../../../infra/proxy.js";
 import { createTelegramRetryRunner } from "../../../infra/retry-policy.js";
 import type { RetryConfig } from "../../../infra/retry.js";
 import { traceChannelEvent } from "../../../logging/chat-trace.js";
@@ -112,7 +113,7 @@ function createTelegramHttpLogger(cfg: ReturnType<typeof loadConfig>) {
 function resolveTelegramClientOptions(
   account: ResolvedTelegramAccount,
 ): ApiClientOptions | undefined {
-  const proxyUrl = account.config.proxy?.trim();
+  const proxyUrl = resolveProxyUrl(account.config.proxy);
   const proxyFetch = proxyUrl ? makeProxyFetch(proxyUrl) : undefined;
   const fetchImpl = resolveTelegramFetch(proxyFetch, {
     network: account.config.network,

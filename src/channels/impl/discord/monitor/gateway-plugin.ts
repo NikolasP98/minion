@@ -3,6 +3,7 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import WebSocket from "ws";
 import type { DiscordAccountConfig } from "../../../../config/types.js";
 import { danger } from "../../../../globals.js";
+import { resolveProxyUrl } from "../../../../infra/proxy.js";
 import type { RuntimeEnv } from "../../../../runtime.js";
 
 export function resolveDiscordGatewayIntents(
@@ -29,7 +30,7 @@ export function createDiscordGatewayPlugin(params: {
   runtime: RuntimeEnv;
 }): GatewayPlugin {
   const intents = resolveDiscordGatewayIntents(params.discordConfig?.intents);
-  const proxy = params.discordConfig?.proxy?.trim();
+  const proxy = resolveProxyUrl(params.discordConfig?.proxy);
   const options = {
     reconnect: { maxAttempts: 50 },
     intents,

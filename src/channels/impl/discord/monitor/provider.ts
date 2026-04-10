@@ -28,6 +28,7 @@ import type { OpenClawConfig, ReplyToMode } from "../../../../config/config.js";
 import { loadConfig } from "../../../../config/config.js";
 import { danger, logVerbose, shouldLogVerbose, warn } from "../../../../globals.js";
 import { formatErrorMessage } from "../../../../infra/errors.js";
+import { resolveProxyUrl } from "../../../../infra/proxy.js";
 import { createDiscordRetryRunner } from "../../../../infra/retry-policy.js";
 import { createSubsystemLogger } from "../../../../logging/subsystem.js";
 import { createNonExitingRuntime, type RuntimeEnv } from "../../../../runtime.js";
@@ -183,7 +184,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   const runtime: RuntimeEnv = opts.runtime ?? createNonExitingRuntime();
 
   const discordCfg = account.config;
-  const discordRestFetch = resolveDiscordRestFetch(discordCfg.proxy, runtime);
+  const discordRestFetch = resolveDiscordRestFetch(resolveProxyUrl(discordCfg.proxy), runtime);
   const dmConfig = discordCfg.dm;
   let guildEntries = discordCfg.guilds;
   const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;

@@ -39,7 +39,9 @@ export function resolveTelegramFetch(
   }
   const fetchImpl = resolveFetch();
   if (!fetchImpl) {
-    throw new Error("fetch is not available; set channels.telegram.proxy in config");
+    throw new Error(
+      "fetch is not available; set channels.telegram.proxy in config or set the HTTPS_PROXY / HTTP_PROXY env var",
+    );
   }
   return fetchImpl;
 }

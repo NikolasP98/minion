@@ -5,6 +5,7 @@ import { loadConfig } from "../../../config/config.js";
 import { computeBackoff, sleepWithAbort } from "../../../infra/backoff.js";
 import { formatErrorMessage } from "../../../infra/errors.js";
 import { formatDurationPrecise } from "../../../infra/format-time/format-duration.ts";
+import { resolveProxyUrl } from "../../../infra/proxy.js";
 import { registerUnhandledRejectionHandler } from "../../../infra/unhandled-rejections.js";
 import type { RuntimeEnv } from "../../../runtime.js";
 import { resolveTelegramAccount } from "./accounts.js";
@@ -116,8 +117,9 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       );
     }
 
+    const resolvedProxyUrl = resolveProxyUrl(account.config.proxy);
     const proxyFetch =
-      opts.proxyFetch ?? (account.config.proxy ? makeProxyFetch(account.config.proxy) : undefined);
+      opts.proxyFetch ?? (resolvedProxyUrl ? makeProxyFetch(resolvedProxyUrl) : undefined);
 
     let lastUpdateId = await readTelegramUpdateOffset({
       accountId: account.accountId,
