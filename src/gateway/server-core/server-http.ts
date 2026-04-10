@@ -450,6 +450,8 @@ export function createGatewayHttpServer(opts: {
   resolvedAuth: ResolvedGatewayAuth;
   /** Optional rate limiter for auth brute-force protection. */
   rateLimiter?: AuthRateLimiter;
+  /** Optional capability API handler (MIN-458). */
+  handleCapabilityApiRequest?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
   tlsOptions?: TlsOptions;
 }): HttpServer {
   const {
@@ -465,6 +467,7 @@ export function createGatewayHttpServer(opts: {
     handlePluginRequest,
     resolvedAuth,
     rateLimiter,
+    handleCapabilityApiRequest,
   } = opts;
   const httpServer: HttpServer = opts.tlsOptions
     ? createHttpsServer(opts.tlsOptions, (req, res) => {
@@ -545,6 +548,9 @@ export function createGatewayHttpServer(opts: {
         }
       }
       if (await handleConfigApiRequest(req, res)) {
+        return;
+      }
+      if (handleCapabilityApiRequest && (await handleCapabilityApiRequest(req, res))) {
         return;
       }
       if (canvasHost) {
