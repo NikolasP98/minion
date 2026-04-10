@@ -1,4 +1,27 @@
 services:
+  # BrowserUse headless browser service — LLM-directed browser automation.
+  # Agents call the browse_web tool which proxies here.
+  # Activate with: docker compose --profile browseruse up browseruse
+  # Set BROWSERUSE_URL=http://browseruse:8080 in minion-gateway/minion-cli env to enable browse_web.
+  browseruse:
+    image: ${MINION_BROWSERUSE_IMAGE:-ghcr.io/nikolasp98/minion-browseruse:latest}
+    container_name: ${MINION_BROWSERUSE_CONTAINER_NAME:-minion_browseruse}
+    restart: unless-stopped
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      BROWSERUSE_MAX_STEPS: ${BROWSERUSE_MAX_STEPS:-10}
+      BROWSERUSE_TIMEOUT_SECONDS: ${BROWSERUSE_TIMEOUT_SECONDS:-30}
+    ports:
+      - "${MINION_BROWSERUSE_PORT:-18793}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    profiles:
+      - browseruse
+
   minion-gateway:
     platform: ${MINION_DOCKER_PLATFORM:-linux/amd64}
     container_name: ${MINION_GATEWAY_CONTAINER_NAME:-minion_gateway}
@@ -22,6 +45,9 @@ services:
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # BrowserUse headless browser service — set to http://browseruse:8080 when running
+      # the browseruse profile. Leave unset to disable the browse_web tool.
+      BROWSERUSE_URL: ${BROWSERUSE_URL:-}
     volumes:
       - ${MINION_CONFIG_DIR:-~/.minion}:/home/node/.minion
       - ${MINION_WORKSPACE_DIR:-~/.minion/workspace}:/home/node/.minion/workspace
@@ -57,6 +83,8 @@ services:
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # BrowserUse headless browser service (matches gateway config above)
+      BROWSERUSE_URL: ${BROWSERUSE_URL:-}
     volumes:
       - ${MINION_CONFIG_DIR:-~/.minion}:/home/node/.minion
       - ${MINION_WORKSPACE_DIR:-~/.minion/workspace}:/home/node/.minion/workspace
