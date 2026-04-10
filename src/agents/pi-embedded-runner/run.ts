@@ -471,7 +471,9 @@ export async function runEmbeddedPiAgent(
       }
 
       const MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
+      const MAX_TRANSPORT_RETRIES = 2;
       let overflowCompactionAttempts = 0;
+      let transportRetryCount = 0;
       let toolResultTruncationAttempted = false;
       const usageAccumulator = createUsageAccumulator();
       let lastRunPromptUsage: ReturnType<typeof normalizeUsage> | undefined;
@@ -830,6 +832,19 @@ export async function runEmbeddedPiAgent(
             ) {
               continue;
             }
+            // Transport error recovery (MIN-495): retry in-place on transient
+            // network errors (ECONNRESET, ETIMEDOUT, etc.) without losing the
+            // session. Bounded to MAX_TRANSPORT_RETRIES to avoid infinite loops.
+            if (promptFailoverReason === "timeout" && transportRetryCount < MAX_TRANSPORT_RETRIES) {
+              transportRetryCount++;
+              const backoffMs = 1000 * transportRetryCount;
+              log.warn(
+                `transport error on ${provider}/${modelId}, retrying in ${backoffMs}ms ` +
+                  `(attempt ${transportRetryCount}/${MAX_TRANSPORT_RETRIES}): ${errorText.slice(0, 200)}`,
+              );
+              await new Promise((r) => setTimeout(r, backoffMs));
+              continue;
+            }
             const fallbackThinking = pickFallbackThinkingLevel({
               message: errorText,
               attempted: attemptedThinking,
@@ -926,6 +941,24 @@ export async function runEmbeddedPiAgent(
 
             const rotated = await advanceAuthProfile();
             if (rotated) {
+              continue;
+            }
+
+            // Transport error recovery (MIN-495): if profile rotation is
+            // unavailable, retry in-place on transient network errors before
+            // escalating to FailoverError or returning an error response.
+            if (
+              timedOut &&
+              !timedOutDuringCompaction &&
+              transportRetryCount < MAX_TRANSPORT_RETRIES
+            ) {
+              transportRetryCount++;
+              const backoffMs = 1000 * transportRetryCount;
+              log.warn(
+                `transport error on ${provider}/${modelId} (streaming), retrying in ${backoffMs}ms ` +
+                  `(attempt ${transportRetryCount}/${MAX_TRANSPORT_RETRIES})`,
+              );
+              await new Promise((r) => setTimeout(r, backoffMs));
               continue;
             }
 
