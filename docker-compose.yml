@@ -22,6 +22,20 @@ services:
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # LiveKit real-time voice agents (optional — leave unset to disable)
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_SIP_HOST: ${LIVEKIT_SIP_HOST:-sip.livekit.io}
+      # STT providers (Deepgram preferred; Whisper fallback)
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      # TTS providers
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      # Twilio SIP trunk (for phone-call ingress/egress)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      TWILIO_SIP_DOMAIN: ${TWILIO_SIP_DOMAIN:-}
     volumes:
       - ${MINION_CONFIG_DIR:-~/.minion}:/home/node/.minion
       - ${MINION_WORKSPACE_DIR:-~/.minion/workspace}:/home/node/.minion/workspace
