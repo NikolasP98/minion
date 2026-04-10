@@ -8,6 +8,7 @@ import { resetDiagnosticSessionStateForTest } from "../logging/diagnostic-sessio
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { checkCommandAutonomy } from "../security/autonomy-enforcement.js";
 import {
+  detectTruncatedToolCall,
   runBeforeToolCallHook,
   wrapToolWithBeforeToolCallHook,
 } from "./pi-tools.before-tool-call.js";
@@ -379,5 +380,86 @@ describe("autonomy enforcement wiring", () => {
         config,
       }),
     );
+  });
+});
+
+describe("detectTruncatedToolCall", () => {
+  it("returns null for a normal tool call with object params", () => {
+    expect(detectTruncatedToolCall("bash", { command: "ls" })).toBeNull();
+  });
+
+  it("returns null for a tool call with no params (empty object)", () => {
+    expect(detectTruncatedToolCall("bash", {})).toBeNull();
+  });
+
+  it("returns null for a tool call with null params", () => {
+    expect(detectTruncatedToolCall("read", null)).toBeNull();
+  });
+
+  it("returns a reason string when tool name is empty", () => {
+    const reason = detectTruncatedToolCall("", { path: "/foo" });
+    expect(reason).not.toBeNull();
+    expect(reason).toMatch(/empty function name/);
+  });
+
+  it("returns a reason string when tool name is whitespace-only", () => {
+    const reason = detectTruncatedToolCall("   ", { path: "/foo" });
+    expect(reason).not.toBeNull();
+    expect(reason).toMatch(/empty function name/);
+  });
+
+  it("returns a reason string when params is a partial JSON string", () => {
+    const reason = detectTruncatedToolCall("read", '{"path": "/some/fi');
+    expect(reason).not.toBeNull();
+    expect(reason).toMatch(/partial JSON string/);
+  });
+
+  it("returns null when params is a valid JSON string", () => {
+    // Unusual but valid: SDK may pass args as a serialized string in some providers
+    expect(detectTruncatedToolCall("read", '{"path": "/some/file"}')).toBeNull();
+  });
+
+  it("returns null when params is an empty string (treated as no args)", () => {
+    expect(detectTruncatedToolCall("ping", "")).toBeNull();
+  });
+});
+
+describe("runBeforeToolCallHook — truncation guard", () => {
+  beforeEach(() => {
+    vi.mocked(getGlobalHookRunner).mockReturnValue({
+      hasHooks: vi.fn().mockReturnValue(false),
+      runBeforeToolCall: vi.fn(),
+    } as never);
+    vi.mocked(checkCommandAutonomy).mockReturnValue(null);
+  });
+
+  it("blocks tool calls with an empty name", async () => {
+    const result = await runBeforeToolCallHook({
+      toolName: "",
+      params: { path: "/foo" },
+    });
+    expect(result.blocked).toBe(true);
+    if (result.blocked) {
+      expect(result.reason).toMatch(/empty function name/);
+    }
+  });
+
+  it("blocks tool calls when params is a partial JSON string", async () => {
+    const result = await runBeforeToolCallHook({
+      toolName: "read",
+      params: '{"path": "/some/fi',
+    });
+    expect(result.blocked).toBe(true);
+    if (result.blocked) {
+      expect(result.reason).toMatch(/partial JSON string/);
+    }
+  });
+
+  it("does not block normal tool calls", async () => {
+    const result = await runBeforeToolCallHook({
+      toolName: "bash",
+      params: { command: "ls" },
+    });
+    expect(result.blocked).toBe(false);
   });
 });

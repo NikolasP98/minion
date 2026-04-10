@@ -164,6 +164,22 @@ describe("buildAssistantMessage", () => {
       total: 0,
     });
   });
+
+  it("throws when a tool call has an empty function name (truncated stream)", () => {
+    const response = {
+      model: "qwen3:32b",
+      created_at: "2026-01-01T00:00:00Z",
+      message: {
+        role: "assistant" as const,
+        content: "",
+        tool_calls: [{ function: { name: "", arguments: {} } }],
+      },
+      done: true,
+    };
+    expect(() => buildAssistantMessage(response, modelInfo)).toThrow(
+      /empty or invalid function name/,
+    );
+  });
 });
 
 // Helper: build a ReadableStreamDefaultReader from NDJSON lines
@@ -345,6 +361,96 @@ describe("createOllamaStreamFn", () => {
       }
 
       expect(doneEvent.message.content).toEqual([{ type: "text", text: "reasoned output" }]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("emits error event when stream is truncated (done_reason=length) with pending tool calls", async () => {
+    const originalFetch = globalThis.fetch;
+    // Simulate: model started a tool call (sent in intermediate chunk) but hit the
+    // token limit before completing the response. done_reason=length signals truncation.
+    const fetchMock = vi.fn(async () => {
+      const payload = [
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"bash","arguments":{"command":"ls"}}}]},"done":false}',
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":""},"done":true,"done_reason":"length","prompt_eval_count":5,"eval_count":512}',
+      ].join("\n");
+      return new Response(`${payload}\n`, {
+        status: 200,
+        headers: { "Content-Type": "application/x-ndjson" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const streamFn = createOllamaStreamFn("http://ollama-host:11434");
+      const stream = await streamFn(
+        {
+          id: "qwen3:32b",
+          api: "ollama",
+          provider: "custom-ollama",
+          contextWindow: 131072,
+        } as unknown as Parameters<typeof streamFn>[0],
+        {
+          messages: [{ role: "user", content: "ls the files" }],
+        } as unknown as Parameters<typeof streamFn>[1],
+        {} as unknown as Parameters<typeof streamFn>[2],
+      );
+
+      const events = [];
+      for await (const event of stream) {
+        events.push(event);
+      }
+
+      const lastEvent = events.at(-1);
+      expect(lastEvent?.type).toBe("error");
+      if (lastEvent?.type === "error") {
+        expect(lastEvent.error.errorMessage).toMatch(/truncated at token limit/);
+        expect(lastEvent.error.errorMessage).toMatch(/done_reason=length/);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("succeeds when done_reason=length but no tool calls were accumulated", async () => {
+    const originalFetch = globalThis.fetch;
+    // Text-only response hitting token limit is not dangerous — no partial tool calls.
+    const fetchMock = vi.fn(async () => {
+      const payload = [
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":"partial answ"},"done":false}',
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":"er"},"done":false}',
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":""},"done":true,"done_reason":"length","prompt_eval_count":1,"eval_count":512}',
+      ].join("\n");
+      return new Response(`${payload}\n`, {
+        status: 200,
+        headers: { "Content-Type": "application/x-ndjson" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const streamFn = createOllamaStreamFn("http://ollama-host:11434");
+      const stream = await streamFn(
+        {
+          id: "qwen3:32b",
+          api: "ollama",
+          provider: "custom-ollama",
+          contextWindow: 131072,
+        } as unknown as Parameters<typeof streamFn>[0],
+        {
+          messages: [{ role: "user", content: "tell me about..." }],
+        } as unknown as Parameters<typeof streamFn>[1],
+        {} as unknown as Parameters<typeof streamFn>[2],
+      );
+
+      const events = [];
+      for await (const event of stream) {
+        events.push(event);
+      }
+
+      // Should complete normally — truncated text is fine, truncated tool args are not
+      expect(events.at(-1)?.type).toBe("done");
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -203,6 +203,13 @@ export function buildAssistantMessage(
   const toolCalls = response.message.tool_calls;
   if (toolCalls && toolCalls.length > 0) {
     for (const tc of toolCalls) {
+      // Guard against truncated tool calls with no function name — this can
+      // occur when the model stream is cut off before the name was fully emitted.
+      if (!tc.function.name || typeof tc.function.name !== "string") {
+        throw new Error(
+          "Ollama tool call has empty or invalid function name — stream may be truncated",
+        );
+      }
       content.push({
         type: "toolCall",
         id: `ollama_call_${randomUUID()}`,
@@ -371,6 +378,17 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
 
         if (!finalResponse) {
           throw new Error("Ollama API stream ended without a final response");
+        }
+
+        // Detect truncated stream: if the model hit the token limit with pending
+        // tool calls, the arguments may be incomplete. Executing them could cause
+        // incorrect or dangerous behavior (mirrors Hermes commit 2d0d05a3).
+        if (finalResponse.done_reason === "length" && accumulatedToolCalls.length > 0) {
+          throw new Error(
+            `Ollama stream truncated at token limit (done_reason=length) with ` +
+              `${accumulatedToolCalls.length} pending tool call(s). ` +
+              `Tool arguments may be incomplete — aborting to prevent incorrect tool execution.`,
+          );
         }
 
         finalResponse.message.content = accumulatedContent;

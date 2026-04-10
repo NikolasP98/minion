@@ -80,12 +80,46 @@ async function recordLoopOutcome(args: {
   }
 }
 
+/**
+ * Detect tool calls that appear to be truncated from a cut-off LLM stream.
+ *
+ * Two signals are checked:
+ * 1. The raw tool name is empty/blank — the stream stopped before emitting a name.
+ * 2. The raw params value is a non-empty string that is not valid JSON — the stream
+ *    delivered a partial JSON fragment that the SDK forwarded without completing it.
+ *
+ * Returns a human-readable reason string when truncation is detected, `null` otherwise.
+ */
+export function detectTruncatedToolCall(rawName: string, params: unknown): string | null {
+  if (!rawName || !rawName.trim()) {
+    return "Tool call has an empty function name — stream was likely truncated before the name was emitted";
+  }
+  if (typeof params === "string" && params.length > 0) {
+    try {
+      JSON.parse(params);
+    } catch {
+      return `Tool call arguments are a partial JSON string (likely truncated stream): ${params.slice(0, 120)}`;
+    }
+  }
+  return null;
+}
+
 export async function runBeforeToolCallHook(args: {
   toolName: string;
   params: unknown;
   toolCallId?: string;
   ctx?: HookContext;
 }): Promise<HookOutcome> {
+  // ── Truncation guard ────────────────────────────────────────────────────────
+  // Detect and block tool calls that appear to originate from a truncated stream
+  // before any other logic runs. Executing a tool with partial arguments can
+  // produce incorrect or dangerous results (mirrors Hermes commit 2d0d05a3).
+  const truncationReason = detectTruncatedToolCall(args.toolName, args.params);
+  if (truncationReason) {
+    log.warn(`[truncation-guard] Blocking ${args.toolName || "(empty)"}: ${truncationReason}`);
+    return { blocked: true, reason: truncationReason };
+  }
+
   const toolName = normalizeToolName(args.toolName || "tool");
   const params = args.params;
 
@@ -305,4 +339,5 @@ export const __testing = {
   adjustedParamsByToolCallId,
   runBeforeToolCallHook,
   isPlainObject,
+  detectTruncatedToolCall,
 };
