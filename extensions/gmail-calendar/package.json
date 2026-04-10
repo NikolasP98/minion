@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/gmail-calendar",
+  "version": "2026.4.10",
+  "private": true,
+  "description": "OpenClaw Gmail + Google Calendar + Outlook email/calendar agent toolkit",
+  "type": "module",
+  "devDependencies": {
+    "@nikolasp98/minion": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

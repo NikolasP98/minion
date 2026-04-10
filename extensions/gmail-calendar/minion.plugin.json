@@ -1,0 +1,39 @@
+{
+  "id": "gmail-calendar",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "requireApproval": {
+        "type": "boolean",
+        "description": "Require human approval before sending emails (default: true)"
+      },
+      "approvalTimeoutMs": {
+        "type": "number",
+        "description": "Milliseconds before a pending send approval expires (default: 300000)"
+      },
+      "outlook": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "Microsoft Azure app client ID for Outlook OAuth"
+          },
+          "clientSecret": {
+            "type": "string",
+            "description": "Microsoft Azure app client secret"
+          },
+          "tenantId": {
+            "type": "string",
+            "description": "Azure tenant ID (default: common for multi-tenant)"
+          },
+          "redirectUri": {
+            "type": "string",
+            "description": "OAuth redirect URI (default: http://localhost:51125/oauth-callback)"
+          }
+        }
+      }
+    }
+  }
+}
