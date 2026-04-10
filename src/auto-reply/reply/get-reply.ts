@@ -26,6 +26,7 @@ import { finalizeInboundContext } from "./inbound-context.js";
 import { applyResetModelOverride } from "./session-reset-model.js";
 import { initSessionState } from "./session.js";
 import { getSessionPin, pinSession, routeMessage } from "./smart-routing.js";
+import { routeTask } from "../../routing/routellm.js";
 import { stageSandboxMedia } from "./stage-sandbox-media.js";
 import { createTypingController } from "./typing.js";
 
@@ -286,6 +287,25 @@ export async function getReplyFromConfig(
   }
   const smartRouteDisableTools = smartRoute?.disableTools ?? false;
   // ── End smart routing ───────────────────────────────────────────────────
+
+  // ── RouteLLM adaptive cost routing ─────────────────────────────────────
+  // Only applies when:
+  //   1. routellm is configured and enabled, AND
+  //   2. smart routing did NOT already select a local/custom model
+  //      (smart routing is for local tiers; RouteLLM picks cheap vs frontier API models)
+  if (agentCfg?.routellm?.enabled && !smartRouted) {
+    const routellmDecision = routeTask(
+      {
+        prompt: promptText,
+        traceId: ctx.MessageSid ?? ctx.MessageSidFirst ?? undefined,
+        agentId,
+      },
+      agentCfg.routellm,
+    );
+    // Only override the model string (provider stays unchanged).
+    model = routellmDecision.model;
+  }
+  // ── End RouteLLM routing ────────────────────────────────────────────────
 
   const inlineActionResult = await handleInlineActions({
     ctx,

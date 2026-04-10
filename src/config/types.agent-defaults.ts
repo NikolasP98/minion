@@ -2,6 +2,7 @@ import type {
   AgentOrchestratorConfig,
   AgentRoutingConfig,
 } from "../auto-reply/reply/smart-routing.js";
+import type { RouteLLMConfig } from "../routing/routellm.js";
 import type { ChannelId } from "../channels/plugins/types.js";
 import type {
   BlockStreamingChunkConfig,
@@ -245,6 +246,8 @@ export type AgentDefaultsConfig = {
   routing?: AgentRoutingConfig;
   /** Orchestrator escalation for complex tasks. */
   orchestrator?: AgentOrchestratorConfig;
+  /** RouteLLM adaptive cost routing — MF classifier selects cheap vs frontier model per task. */
+  routellm?: RouteLLMConfig;
   /** Max concurrent agent runs across all conversations. Default: 1 (sequential). */
   maxConcurrent?: number;
   /** Sub-agent defaults (spawned via sessions_spawn). */
