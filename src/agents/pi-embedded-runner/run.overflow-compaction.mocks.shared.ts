@@ -92,6 +92,7 @@ vi.mock("../models/model-auth.js", () => ({
 
 vi.mock("../models/models-config.js", () => ({
   ensureMinionModelsJson: vi.fn(async () => {}),
+  ensureOpenClawModelsJson: vi.fn(async () => {}),
 }));
 
 vi.mock("../context-window-guard.js", () => ({

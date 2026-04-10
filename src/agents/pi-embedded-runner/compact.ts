@@ -643,6 +643,29 @@ export async function compactEmbeddedPiSessionDirect(
         const result = await compactWithSafetyTimeout(() =>
           session.compact(params.customInstructions),
         );
+
+        // Guard: reject compaction result if it produced an empty or assistant-free session.
+        // An empty session (no messages) or a session without any assistant message will
+        // cause prepareSessionManagerForRun to wipe the session file on the next loop
+        // iteration (see session-manager-init.ts), resulting in total context loss.
+        // Return a failure so the runner can handle the overflow without silently
+        // destroying session state.
+        const postCompactionMessages = session.messages;
+        const hasAssistantAfterCompaction = postCompactionMessages.some(
+          (m) => (m as { role?: string }).role === "assistant",
+        );
+        if (postCompactionMessages.length === 0 || !hasAssistantAfterCompaction) {
+          log.warn(
+            `[compaction-diag] empty-session-guard diagId=${diagId} ` +
+              `messages=${postCompactionMessages.length} hasAssistant=${hasAssistantAfterCompaction}; ` +
+              `rejecting compaction result to prevent context loss`,
+          );
+          return fail(
+            `compaction produced empty or assistant-free session state ` +
+              `(messages=${postCompactionMessages.length}, hasAssistant=${hasAssistantAfterCompaction})`,
+          );
+        }
+
         // Estimate tokens after compaction by summing token estimates for remaining messages
         let tokensAfter: number | undefined;
         try {
