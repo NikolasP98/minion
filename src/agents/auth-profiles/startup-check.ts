@@ -1,6 +1,7 @@
 import { emitReliabilityEvent } from "../../logging/reliability.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { buildAuthHealthSummary, type AuthHealthSummary } from "../auth-health.js";
+import { enforceAllAuthProfilePermissions } from "./permissions.js";
 import { ensureAuthProfileStore } from "./store.js";
 
 const log = createSubsystemLogger("auth/startup");
@@ -12,6 +13,15 @@ const log = createSubsystemLogger("auth/startup");
 export function runStartupCredentialCheck(params?: {
   cfg?: Parameters<typeof buildAuthHealthSummary>[0]["cfg"];
 }): AuthHealthSummary | null {
+  // Enforce secure permissions on all auth profile files on every startup.
+  // New writes already use 0700/0600, but existing files from older versions
+  // may have looser permissions. This is a best-effort, non-blocking pass.
+  try {
+    enforceAllAuthProfilePermissions();
+  } catch (err) {
+    log.warn("auth profile permission enforcement failed", { err: String(err) });
+  }
+
   try {
     const store = ensureAuthProfileStore();
     const summary = buildAuthHealthSummary({ store, cfg: params?.cfg });
