@@ -6,7 +6,8 @@ import {
 } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import type { TlsOptions } from "node:tls";
-import type { WebSocketServer } from "ws";
+import { WebSocketServer } from "ws";
+import type { McpServer } from "../../mcp/mcp-server.js";
 import { resolveAgentAvatar } from "../../agents/identity/identity-avatar.js";
 import {
   A2UI_PATH,
@@ -56,6 +57,7 @@ import { handleOpenAiHttpRequest } from "../openai-http.js";
 import { handleOpenResponsesHttpRequest } from "../openresponses-http.js";
 import type { GatewayWsClient } from "../server/ws-types.js";
 import { handleToolsInvokeHttpRequest } from "../tools-invoke-http.js";
+import { handleWellKnownMcpRequest } from "./server-well-known-mcp.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 type HookAuthFailure = { count: number; windowStartedAtMs: number };
@@ -481,6 +483,11 @@ export function createGatewayHttpServer(opts: {
     }
 
     try {
+      // Unauthenticated: MCP Server Card for registry discovery.
+      if (handleWellKnownMcpRequest(req, res)) {
+        return;
+      }
+
       const configSnapshot = loadConfig();
       const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
       const requestPath = new URL(req.url ?? "/", "http://localhost").pathname;
@@ -601,6 +608,8 @@ export function createGatewayHttpServer(opts: {
   return httpServer;
 }
 
+const MCP_WS_PATH = "/mcp";
+
 export function attachGatewayUpgradeHandler(opts: {
   httpServer: HttpServer;
   wss: WebSocketServer;
@@ -609,12 +618,48 @@ export function attachGatewayUpgradeHandler(opts: {
   resolvedAuth: ResolvedGatewayAuth;
   /** Optional rate limiter for auth brute-force protection. */
   rateLimiter?: AuthRateLimiter;
+  /** Optional MCP 1.1 server — when provided, /mcp WebSocket upgrades are routed here. */
+  mcpServer?: McpServer;
 }) {
-  const { httpServer, wss, canvasHost, clients, resolvedAuth, rateLimiter } = opts;
+  const { httpServer, wss, canvasHost, clients, resolvedAuth, rateLimiter, mcpServer } = opts;
+
+  // Lazy-create a dedicated WebSocketServer for the /mcp endpoint.
+  let mcpWss: WebSocketServer | null = null;
+  if (mcpServer) {
+    mcpWss = new WebSocketServer({ noServer: true });
+    mcpWss.on("connection", (ws, req) => {
+      mcpServer.handleConnection(ws, req);
+    });
+  }
+
   httpServer.on("upgrade", (req, socket, head) => {
     void (async () => {
+      const url = new URL(req.url ?? "/", "http://localhost");
+
+      // Route /mcp upgrades to the MCP WebSocket server (requires auth).
+      if (mcpWss && url.pathname === MCP_WS_PATH) {
+        const configSnapshot = loadConfig();
+        const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
+        const token = getBearerToken(req);
+        const authResult = await authorizeGatewayConnect({
+          auth: resolvedAuth,
+          connectAuth: token ? { token, password: token } : null,
+          req,
+          trustedProxies,
+          rateLimiter,
+        });
+        if (!authResult.ok) {
+          writeUpgradeAuthFailure(socket, authResult);
+          socket.destroy();
+          return;
+        }
+        mcpWss.handleUpgrade(req, socket, head, (ws) => {
+          mcpWss!.emit("connection", ws, req);
+        });
+        return;
+      }
+
       if (canvasHost) {
-        const url = new URL(req.url ?? "/", "http://localhost");
         if (url.pathname === CANVAS_WS_PATH) {
           const configSnapshot = loadConfig();
           const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];

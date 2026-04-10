@@ -30,6 +30,8 @@ import {
 import { MAX_PAYLOAD_BYTES } from "./server-constants.js";
 import { attachGatewayUpgradeHandler, createGatewayHttpServer } from "./server-http.js";
 import type { DedupeEntry } from "./server-shared.js";
+import { McpServer } from "../../mcp/mcp-server.js";
+import { assignmentBus, ASSIGNMENT_EVENT } from "../../mcp/resource-watcher.js";
 
 export async function createGatewayRuntimeState(params: {
   cfg: import("../../config/config.js").MinionConfig;
@@ -61,6 +63,7 @@ export async function createGatewayRuntimeState(params: {
   httpServers: HttpServer[];
   httpBindHosts: string[];
   wss: WebSocketServer;
+  mcpServer: McpServer;
   clients: Set<GatewayWsClient>;
   broadcast: GatewayBroadcastFn;
   broadcastToConnIds: GatewayBroadcastToConnIdsFn;
@@ -160,6 +163,18 @@ export async function createGatewayRuntimeState(params: {
     noServer: true,
     maxPayload: MAX_PAYLOAD_BYTES,
   });
+
+  // MCP 1.1 server — resource subscriptions, roots enforcement, sampling.
+  const mcpServer = new McpServer({
+    resolveTenantId: (req) => {
+      // Derive tenant from the gateway token scope or host header.
+      // Single-tenant deployments can use "default"; multi-tenant deployments
+      // should resolve from auth context.
+      const host = typeof req.headers.host === "string" ? req.headers.host : null;
+      return host ?? "default";
+    },
+  });
+
   for (const server of httpServers) {
     attachGatewayUpgradeHandler({
       httpServer: server,
@@ -168,6 +183,7 @@ export async function createGatewayRuntimeState(params: {
       clients,
       resolvedAuth: params.resolvedAuth,
       rateLimiter: params.rateLimiter,
+      mcpServer,
     });
   }
 
@@ -177,7 +193,14 @@ export async function createGatewayRuntimeState(params: {
   const chatRunRegistry = chatRunState.registry;
   const chatRunBuffers = chatRunState.buffers;
   const chatDeltaSentAt = chatRunState.deltaSentAt;
-  const addChatRun = chatRunRegistry.add;
+
+  // Emit assignment events on the shared bus so MCP subscribers receive push
+  // notifications via db://issues/assigned.
+  const rawAdd = chatRunRegistry.add;
+  const addChatRun: typeof rawAdd = (sessionId, entry) => {
+    rawAdd(sessionId, entry);
+    assignmentBus.emit(ASSIGNMENT_EVENT);
+  };
   const removeChatRun = chatRunRegistry.remove;
   const chatAbortControllers = new Map<string, ChatAbortControllerEntry>();
   const toolEventRecipients = createToolEventRecipientRegistry();
@@ -188,6 +211,7 @@ export async function createGatewayRuntimeState(params: {
     httpServers,
     httpBindHosts,
     wss,
+    mcpServer,
     clients,
     broadcast,
     broadcastToConnIds,
