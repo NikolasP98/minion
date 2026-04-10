@@ -11,8 +11,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { AuditEntry, AuditViolation, DataCategory } from "./audit-types.js";
 import { AuditStore } from "./audit-store.js";
+import type { AuditEntry, AuditViolation, DataCategory } from "./audit-types.js";
+import { getToolPrivacyDeclaration } from "./tool-privacy-policy.js";
 
 export type ReportFormat = "json" | "markdown" | "html";
 
@@ -58,7 +59,9 @@ export type ComplianceReport = {
  * Aggregate per-tool data flows, collect all violations, and compute a
  * tamper-evident hash over the raw JSONL content for the report period.
  */
-export async function generateComplianceReport(opts: ReportOptions = {}): Promise<ComplianceReport> {
+export async function generateComplianceReport(
+  opts: ReportOptions = {},
+): Promise<ComplianceReport> {
   const end = opts.end ?? new Date();
   const start = opts.start ?? new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
   const auditDir = opts.auditDir ?? path.join(os.homedir(), ".minion", "audit");
@@ -106,7 +109,9 @@ export async function generateComplianceReport(opts: ReportOptions = {}): Promis
     period: { start: start.toISOString(), end: end.toISOString() },
     totalToolInvocations: entries.length,
     totalViolations: allViolations.length,
-    dataFlows: Array.from(flowMap.values()).sort((a, b) => b.invocationCount - a.invocationCount),
+    dataFlows: Array.from(flowMap.values()).toSorted(
+      (a, b) => b.invocationCount - a.invocationCount,
+    ),
     violations: allViolations,
     auditLogHash,
     policyVersion,
@@ -125,20 +130,10 @@ function lookupToolDeclaration(entry: AuditEntry): {
   vendor: string;
   externalTransfer: boolean;
 } {
-  // Best-effort from audit entry fields; the tool-privacy-policy module has
-  // the canonical declarations but we don't want to re-classify here —
-  // we trust what was recorded at tool-call time.
-  const name = entry.toolName.toLowerCase();
-  const isExternal =
-    name.includes("web_search") ||
-    name.includes("http") ||
-    name.includes("fetch") ||
-    name.includes("email") ||
-    name.includes("send");
-
+  const decl = getToolPrivacyDeclaration(entry.toolName);
   return {
-    vendor: isExternal ? "third-party" : "local",
-    externalTransfer: isExternal,
+    vendor: decl.vendor,
+    externalTransfer: decl.externalTransfer,
   };
 }
 
@@ -196,8 +191,12 @@ export function formatReportAsMarkdown(report: ComplianceReport): string {
   lines.push("");
   lines.push("## Data Flows");
   lines.push("");
-  lines.push("| Tool | Vendor | Data Categories | Consent Scope | Invocations | Third-Party | Violations |");
-  lines.push("|------|--------|----------------|---------------|------------|-------------|-----------|");
+  lines.push(
+    "| Tool | Vendor | Data Categories | Consent Scope | Invocations | Third-Party | Violations |",
+  );
+  lines.push(
+    "|------|--------|----------------|---------------|------------|-------------|-----------|",
+  );
   for (const flow of report.dataFlows) {
     const cats = flow.dataCategories.join(", ") || "none";
     lines.push(
