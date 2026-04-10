@@ -92,15 +92,33 @@ export async function prepareSlackMessage(params: {
     account.config?.allowBots ??
     cfg.channels?.slack?.allowBots ??
     false;
+  // Normalize to canonical mode: "none" | "mentions" | "all"
+  const allowBotsMode =
+    allowBots === true || allowBots === "all"
+      ? "all"
+      : allowBots === "mentions"
+        ? "mentions"
+        : "none";
 
   const isBotMessage = Boolean(message.bot_id);
   if (isBotMessage) {
     if (message.user && ctx.botUserId && message.user === ctx.botUserId) {
       return null;
     }
-    if (!allowBots) {
-      logVerbose(`slack: drop bot message ${message.bot_id ?? "unknown"} (allowBots=false)`);
+    if (allowBotsMode === "none") {
+      logVerbose(`slack: drop bot message ${message.bot_id ?? "unknown"} (allowBots=none)`);
       return null;
+    }
+    if (allowBotsMode === "mentions") {
+      const botMentioned = ctx.botUserId
+        ? (message.text ?? "").includes(`<@${ctx.botUserId}>`)
+        : false;
+      if (!botMentioned) {
+        logVerbose(
+          `slack: drop bot message ${message.bot_id ?? "unknown"} (allowBots=mentions, not mentioned)`,
+        );
+        return null;
+      }
     }
   }
 
@@ -295,9 +313,16 @@ export async function prepareSlackMessage(params: {
     return null;
   }
 
-  const shouldRequireMention = isRoom
-    ? (channelConfig?.requireMention ?? ctx.defaultRequireMention)
-    : false;
+  const isFreeResponseChannel =
+    isRoom &&
+    ctx.freeResponseChannels.length > 0 &&
+    (ctx.freeResponseChannels.includes(message.channel) ||
+      (channelName !== undefined && ctx.freeResponseChannels.includes(`#${channelName}`)) ||
+      (channelName !== undefined && ctx.freeResponseChannels.includes(channelName)));
+  const shouldRequireMention =
+    isRoom && !isFreeResponseChannel
+      ? (channelConfig?.requireMention ?? ctx.defaultRequireMention)
+      : false;
 
   // Allow "control commands" to bypass mention gating if sender is authorized.
   const canDetectMention = Boolean(ctx.botUserId) || mentionRegexes.length > 0;

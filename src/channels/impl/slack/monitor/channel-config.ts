@@ -5,13 +5,14 @@ import {
   type ChannelMatchSource,
 } from "../../../../channels/channel-config.js";
 import type { SlackReactionNotificationMode } from "../../../../config/config.js";
+import type { SlackAllowBotsMode } from "../../../../config/types.slack.js";
 import type { SlackMessageEvent } from "../types.js";
 import { allowListMatches, normalizeAllowListLower, normalizeSlackSlug } from "./allow-list.js";
 
 export type SlackChannelConfigResolved = {
   allowed: boolean;
   requireMention: boolean;
-  allowBots?: boolean;
+  allowBots?: SlackAllowBotsMode;
   users?: Array<string | number>;
   skills?: string[];
   systemPrompt?: string;
@@ -23,7 +24,7 @@ export type SlackChannelConfigEntry = {
   enabled?: boolean;
   allow?: boolean;
   requireMention?: boolean;
-  allowBots?: boolean;
+  allowBots?: SlackAllowBotsMode;
   users?: Array<string | number>;
   skills?: string[];
   systemPrompt?: string;

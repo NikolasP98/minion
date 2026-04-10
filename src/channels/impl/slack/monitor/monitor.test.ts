@@ -2,10 +2,12 @@ import type { App } from "@slack/bolt";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../../config/config.js";
 import type { RuntimeEnv } from "../../../../runtime.js";
+import type { ResolvedSlackAccount } from "../accounts.js";
 import type { SlackMessageEvent } from "../types.js";
 import { resolveSlackChannelConfig } from "./channel-config.js";
 import { createSlackMonitorContext, normalizeSlackChannelType } from "./context.js";
 import { resetSlackThreadStarterCacheForTest, resolveSlackThreadStarter } from "./media.js";
+import { prepareSlackMessage } from "./message-handler/prepare.js";
 import { createSlackThreadTsResolver } from "./thread-resolution.js";
 
 describe("resolveSlackChannelConfig", () => {
@@ -287,5 +289,209 @@ describe("createSlackThreadTsResolver", () => {
     expect(first.thread_ts).toBe("9");
     expect(second.thread_ts).toBe("9");
     expect(historyMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// --- freeResponseChannels tests ---
+
+const defaultAccount: ResolvedSlackAccount = {
+  accountId: "default",
+  enabled: true,
+  botTokenSource: "config",
+  appTokenSource: "config",
+  config: {},
+};
+
+vi.mock("../../../config/sessions.js", () => ({
+  resolveStorePath: vi.fn(() => "/tmp/sessions.json"),
+  updateLastRoute: vi.fn(),
+  resolveSessionKey: vi.fn((scope, ctx, key) => key ?? "main"),
+  readSessionUpdatedAt: vi.fn(() => undefined),
+  recordSessionMetaFromInbound: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("../../../../auto-reply/reply.js", () => ({
+  getReplyFromConfig: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("../../../../pairing/pairing-store.js", () => ({
+  readChannelAllowFromStore: vi.fn().mockResolvedValue([]),
+  upsertChannelPairingRequest: vi.fn().mockResolvedValue({ code: "CODE", created: false }),
+}));
+
+function makeChannelCtx(overrides?: Partial<Parameters<typeof createSlackMonitorContext>[0]>) {
+  return createSlackMonitorContext({
+    ...baseParams(),
+    botUserId: "BOT",
+    dmEnabled: false,
+    dmPolicy: "disabled",
+    groupPolicy: "open",
+    defaultRequireMention: true,
+    app: {
+      client: {
+        conversations: {
+          info: vi.fn().mockResolvedValue({ channel: { name: "general", is_channel: true } }),
+        },
+        users: {
+          info: vi.fn().mockResolvedValue({ user: { profile: { display_name: "Alice" } } }),
+        },
+      },
+    } as unknown as App,
+    ...overrides,
+  });
+}
+
+async function sendChannelMessage(
+  ctx: ReturnType<typeof makeChannelCtx>,
+  text: string,
+  channel = "C1",
+) {
+  const msg: SlackMessageEvent = {
+    type: "message",
+    channel,
+    channel_type: "channel",
+    text,
+    user: "U1",
+    ts: "1000.001",
+    event_ts: "1000.001",
+  } as SlackMessageEvent;
+  return prepareSlackMessage({
+    ctx,
+    account: defaultAccount,
+    message: msg,
+    opts: { source: "message", wasMentioned: false },
+  });
+}
+
+describe("freeResponseChannels", () => {
+  it("normalizes free response channel list from context params", () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: ["C1", "general"] });
+    expect(ctx.freeResponseChannels).toEqual(["C1", "general"]);
+  });
+
+  it("defaults to empty array when not provided", () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: undefined });
+    expect(ctx.freeResponseChannels).toEqual([]);
+  });
+
+  it("bypasses requireMention for channel in freeResponseChannels by ID", async () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: ["C1"] });
+    // No @mention, requireMention=true globally, but C1 is free
+    const result = await sendChannelMessage(ctx, "hello without mention", "C1");
+    expect(result).not.toBeNull();
+  });
+
+  it("still requires mention for channels NOT in freeResponseChannels", async () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: ["C1"] });
+    // C2 is not free, no mention → should be filtered
+    const result = await sendChannelMessage(ctx, "hello without mention", "C2");
+    expect(result).toBeNull();
+  });
+
+  it("bypasses requireMention for channel in freeResponseChannels by name with # prefix", async () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: ["#general"] });
+    // resolveChannelName returns { name: "general" }; with #general in list
+    const result = await sendChannelMessage(ctx, "hello", "C1");
+    expect(result).not.toBeNull();
+  });
+});
+
+describe("allowBots modes", () => {
+  it("resolveSlackChannelConfig preserves allowBots mode string in resolved config", () => {
+    const res = resolveSlackChannelConfig({
+      channelId: "C1",
+      channels: { C1: { allowBots: "mentions" } },
+    });
+    expect(res?.allowBots).toBe("mentions");
+  });
+
+  it("resolveSlackChannelConfig preserves allowBots=all in resolved config", () => {
+    const res = resolveSlackChannelConfig({
+      channelId: "C1",
+      channels: { C1: { allowBots: "all" } },
+    });
+    expect(res?.allowBots).toBe("all");
+  });
+
+  it("drops bot messages when allowBots is none (false)", async () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: [], defaultRequireMention: false });
+    const msg: SlackMessageEvent = {
+      type: "message",
+      channel: "C1",
+      channel_type: "channel",
+      text: "bot says hi",
+      bot_id: "BOTHER",
+      ts: "1000.001",
+      event_ts: "1000.001",
+    } as SlackMessageEvent;
+    const result = await prepareSlackMessage({
+      ctx,
+      account: { ...defaultAccount, config: { allowBots: false } },
+      message: msg,
+      opts: { source: "message" },
+    });
+    expect(result).toBeNull();
+  });
+
+  it("accepts bot messages when allowBots is all (true)", async () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: [], defaultRequireMention: false });
+    const msg: SlackMessageEvent = {
+      type: "message",
+      channel: "C1",
+      channel_type: "channel",
+      text: "bot says hi",
+      bot_id: "BOTHER",
+      ts: "1000.001",
+      event_ts: "1000.001",
+    } as SlackMessageEvent;
+    const result = await prepareSlackMessage({
+      ctx,
+      account: { ...defaultAccount, config: { allowBots: true } },
+      message: msg,
+      opts: { source: "message" },
+    });
+    expect(result).not.toBeNull();
+  });
+
+  it("drops bot messages when allowBots=mentions and bot is not mentioned", async () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: [], defaultRequireMention: false });
+    const msg: SlackMessageEvent = {
+      type: "message",
+      channel: "C1",
+      channel_type: "channel",
+      text: "bot says hi without mentioning <@BOT>",
+      bot_id: "BOTHER",
+      ts: "1000.001",
+      event_ts: "1000.001",
+    } as SlackMessageEvent;
+    // Overwrite text so bot is NOT mentioned
+    const textWithoutMention = "bot says hi without mention";
+    const result = await prepareSlackMessage({
+      ctx,
+      account: { ...defaultAccount, config: { allowBots: "mentions" } },
+      message: { ...msg, text: textWithoutMention },
+      opts: { source: "message" },
+    });
+    expect(result).toBeNull();
+  });
+
+  it("accepts bot messages when allowBots=mentions and bot IS mentioned", async () => {
+    const ctx = makeChannelCtx({ freeResponseChannels: [], defaultRequireMention: false });
+    const msg: SlackMessageEvent = {
+      type: "message",
+      channel: "C1",
+      channel_type: "channel",
+      text: "<@BOT> please help",
+      bot_id: "BOTHER",
+      ts: "1000.002",
+      event_ts: "1000.002",
+    } as SlackMessageEvent;
+    const result = await prepareSlackMessage({
+      ctx,
+      account: { ...defaultAccount, config: { allowBots: "mentions" } },
+      message: msg,
+      opts: { source: "message" },
+    });
+    expect(result).not.toBeNull();
   });
 });

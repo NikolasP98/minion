@@ -209,6 +209,7 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
     groupDmEnabled,
     groupDmChannels,
     defaultRequireMention: slackCfg.requireMention,
+    freeResponseChannels: slackCfg.freeResponseChannels,
     channelsConfig,
     groupPolicy,
     useAccessGroups,

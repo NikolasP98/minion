@@ -283,6 +283,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "channels.slack.dm.policy": "Slack DM Policy",
   "channels.slack.dmPolicy": "Slack DM Policy",
   "channels.slack.allowBots": "Slack Allow Bot Messages",
+  "channels.slack.freeResponseChannels": "Slack Free Response Channels",
   "channels.discord.token": "Discord Bot Token",
   "channels.slack.botToken": "Slack Bot Token",
   "channels.slack.appToken": "Slack App Token",

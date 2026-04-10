@@ -136,7 +136,9 @@ export const FIELD_HELP: Record<string, string> = {
     "Firecrawl maxAge (ms) for cached results when supported by the API.",
   "tools.web.fetch.firecrawl.timeoutSeconds": "Timeout in seconds for Firecrawl requests.",
   "channels.slack.allowBots":
-    "Allow bot-authored messages to trigger Slack replies (default: false).",
+    'Allow bot-authored messages to trigger Slack replies. false/"none": block all (default); true/"all": allow all; "mentions": only bot messages that @mention this bot.',
+  "channels.slack.freeResponseChannels":
+    "Slack channel IDs or names that respond freely without @mention, even when requireMention is true.",
   "channels.slack.thread.historyScope":
     'Scope for Slack thread history context ("thread" isolates per thread; "channel" reuses channel history).',
   "channels.slack.thread.inheritParent":

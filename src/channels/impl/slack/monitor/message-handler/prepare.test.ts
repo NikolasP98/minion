@@ -442,6 +442,7 @@ describe("prepareSlackMessage sender prefix", () => {
       groupDmEnabled: false,
       groupDmChannels: [],
       defaultRequireMention: true,
+      freeResponseChannels: [],
       groupPolicy: "open",
       useAccessGroups: params.useAccessGroups ?? false,
       reactionMode: "off",

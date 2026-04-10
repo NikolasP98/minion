@@ -24,6 +24,8 @@ export type SlackDmConfig = {
   replyToMode?: ReplyToMode;
 };
 
+export type SlackAllowBotsMode = boolean | "none" | "mentions" | "all";
+
 export type SlackChannelConfig = {
   /** If false, disable the bot in this channel. (Alias for allow: false.) */
   enabled?: boolean;
@@ -34,8 +36,13 @@ export type SlackChannelConfig = {
   /** Optional tool policy overrides for this channel. */
   tools?: GroupToolPolicyConfig;
   toolsBySender?: GroupToolPolicyBySenderConfig;
-  /** Allow bot-authored messages to trigger replies (default: false). */
-  allowBots?: boolean;
+  /**
+   * Allow bot-authored messages to trigger replies.
+   * - false / "none": block all bot messages (default)
+   * - true / "all": allow all bot messages
+   * - "mentions": only allow bot messages that @mention this bot
+   */
+  allowBots?: SlackAllowBotsMode;
   /** Allowlist of users that can invoke the bot in this channel. */
   users?: Array<string | number>;
   /** Optional skill filter for this channel. */
@@ -102,10 +109,20 @@ export type SlackAccountConfig = {
   userToken?: string;
   /** If true, restrict user token to read operations only. Default: true. */
   userTokenReadOnly?: boolean;
-  /** Allow bot-authored messages to trigger replies (default: false). */
-  allowBots?: boolean;
+  /**
+   * Allow bot-authored messages to trigger replies.
+   * - false / "none": block all bot messages (default)
+   * - true / "all": allow all bot messages
+   * - "mentions": only allow bot messages that @mention this bot
+   */
+  allowBots?: SlackAllowBotsMode;
   /** Default mention requirement for channel messages (default: true). */
   requireMention?: boolean;
+  /**
+   * Channel IDs or names that always respond without requiring @mention,
+   * even when requireMention is true. Useful for dedicated command channels.
+   */
+  freeResponseChannels?: Array<string | number>;
   /**
    * Controls how channel messages are handled:
    * - "open": channels bypass allowlists; mention-gating applies

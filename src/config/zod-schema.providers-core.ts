@@ -494,6 +494,8 @@ export const SlackDmSchema = z
   })
   .strict();
 
+const SlackAllowBotsModeSchema = z.union([z.boolean(), z.enum(["none", "mentions", "all"])]);
+
 export const SlackChannelSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -501,7 +503,7 @@ export const SlackChannelSchema = z
     requireMention: z.boolean().optional(),
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
-    allowBots: z.boolean().optional(),
+    allowBots: SlackAllowBotsModeSchema.optional(),
     users: z.array(z.union([z.string(), z.number()])).optional(),
     skills: z.array(z.string()).optional(),
     systemPrompt: z.string().optional(),
@@ -539,8 +541,9 @@ export const SlackAccountSchema = z
     appToken: z.string().optional().register(sensitive),
     userToken: z.string().optional().register(sensitive),
     userTokenReadOnly: z.boolean().optional().default(true),
-    allowBots: z.boolean().optional(),
+    allowBots: SlackAllowBotsModeSchema.optional(),
     requireMention: z.boolean().optional(),
+    freeResponseChannels: z.array(z.union([z.string(), z.number()])).optional(),
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
     historyLimit: z.number().int().min(0).optional(),
     dmHistoryLimit: z.number().int().min(0).optional(),
