@@ -261,6 +261,13 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
   const hasSharedSecret =
     (resolvedAuthMode === "token" && hasToken) || (resolvedAuthMode === "password" && hasPassword);
   const canBootstrapToken = resolvedAuthMode === "token" && !hasToken;
+  if (canBootstrapToken && !env.MINION_GATEWAY_TOKEN) {
+    gatewayLog.warn(
+      "WARNING: No API key set (MINION_GATEWAY_TOKEN / gateway.auth.token) — a token will be auto-generated. " +
+        "External clients cannot authenticate without a configured token. " +
+        "Set MINION_GATEWAY_TOKEN or gateway.auth.token for persistent auth.",
+    );
+  }
   const authHints: string[] = [];
   if (miskeys.hasGatewayToken) {
     authHints.push('Found "gateway.token" in config. Use "gateway.auth.token" instead.');

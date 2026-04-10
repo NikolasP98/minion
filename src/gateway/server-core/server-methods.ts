@@ -111,9 +111,27 @@ const WRITE_METHODS = new Set([
   "agent.install",
 ]);
 
+const SESSION_AUTH_REQUIRED_METHODS = new Set([
+  "chat.send",
+  "chat.abort",
+  "sessions.patch",
+  "sessions.reset",
+  "sessions.delete",
+  "sessions.compact",
+  "sessions.list",
+  "sessions.preview",
+  "sessions.resolve",
+]);
+
 function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["client"]) {
   if (!client?.connect) {
     return null;
+  }
+  if (client.authMethod === "none" && SESSION_AUTH_REQUIRED_METHODS.has(method)) {
+    return errorShape(
+      ErrorCodes.INVALID_REQUEST,
+      "session operations require authentication; configure gateway.auth.token or gateway.auth.password",
+    );
   }
   const role = client.connect.role ?? "operator";
   const scopes = client.connect.scopes ?? [];
