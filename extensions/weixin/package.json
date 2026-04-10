@@ -1,0 +1,33 @@
+{
+  "name": "@openclaw/weixin",
+  "version": "2026.4.10",
+  "description": "OpenClaw Weixin/WeChat channel plugin via iLink Bot API",
+  "type": "module",
+  "dependencies": {},
+  "devDependencies": {
+    "@nikolasp98/minion": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "weixin",
+      "label": "Weixin",
+      "selectionLabel": "Weixin/WeChat (微信)",
+      "docsPath": "/channels/weixin",
+      "docsLabel": "weixin",
+      "blurb": "Personal WeChat messaging via iLink Bot API.",
+      "aliases": [
+        "wechat"
+      ],
+      "order": 75,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "@openclaw/weixin",
+      "localPath": "extensions/weixin",
+      "defaultChoice": "npm"
+    }
+  }
+}
