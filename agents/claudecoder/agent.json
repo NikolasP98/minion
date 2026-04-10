@@ -1,0 +1,10 @@
+{
+  "id": "claudecoder",
+  "displayName": "Claude Coder",
+  "sandbox": {
+    "docker": {
+      "memory": "2g",
+      "cpus": 1.0
+    }
+  }
+}

@@ -1010,6 +1010,42 @@ scripts/sandbox-browser-setup.sh   # optional browser image
 - `identity` derives defaults: `ackReaction` from `emoji`, `mentionPatterns` from `name`/`emoji`.
 - `subagents.allowAgents`: allowlist of agent ids for `sessions_spawn` (`["*"]` = any; default: same agent only).
 
+### `agents/` directory hierarchy
+
+In addition to `agents.list` in `gateway.json`, you can place per-agent overrides in individual files:
+
+```
+~/.minion/agents/{agent-id}/agent.json
+```
+
+On startup, Minion scans every `agents/*/agent.json` file and **deep-merges** its contents into the matching `agents.list` entry. If the agent id is not yet defined in `gateway.json`, a new list entry is created automatically.
+
+This is useful for setting per-agent Docker resource limits without editing the main config file:
+
+```json
+{
+  "id": "claudecoder",
+  "sandbox": {
+    "docker": {
+      "memory": "2g",
+      "cpus": 1.0
+    }
+  }
+}
+```
+
+**Precedence (highest wins):**
+1. `agents/{id}/minion.json` — runtime overrides (highest)
+2. `agents/{id}/agent.json` — directory hierarchy overrides
+3. `gateway.json` `agents.list[]` entry — base config
+
+**Rules:**
+- The `id` field in the file must match the directory name (or be omitted — the directory name is used in that case).
+- Files with an `id` that does not match their directory name are skipped with a warning.
+- Parse errors never block gateway startup.
+
+An example `agents/claudecoder/agent.json` is included in the repo as a reference template.
+
 ---
 
 ## Multi-agent routing

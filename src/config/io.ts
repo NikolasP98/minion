@@ -39,10 +39,12 @@ import { applyMergePatch } from "./merge-patch.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
 import {
   resolveAgentConfigPath,
+  resolveAgentsRootDir,
   resolveConfigPath,
   resolveDefaultConfigCandidates,
   resolveStateDir,
 } from "./paths.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
 import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
 import {
@@ -525,6 +527,82 @@ type ReadConfigFileSnapshotInternalResult = {
   envSnapshotForRestore?: Record<string, string | undefined>;
 };
 
+/**
+ * Scan `{stateDir}/agents/*\/agent.json` and deep-merge each file into the
+ * matching `agents.list` entry, or insert a new entry when the agent id is
+ * not yet present. The directory name is the canonical agent id; an `id`
+ * field inside the file must match (if present) or is ignored.
+ *
+ * Called before the minion.json per-agent override so that minion.json wins.
+ * All errors are swallowed — agent.json problems must never block startup.
+ */
+function mergeAgentDirConfigs(
+  cfg: OpenClawConfig,
+  stateDir: string,
+  deps: Required<ConfigIoDeps>,
+): void {
+  const agentsRootDir = resolveAgentsRootDir(stateDir);
+  try {
+    if (!deps.fs.existsSync(agentsRootDir)) {
+      return;
+    }
+    const entries = deps.fs.readdirSync(agentsRootDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const dirAgentId = entry.name;
+      const agentJsonPath = path.join(agentsRootDir, dirAgentId, "agent.json");
+      if (!deps.fs.existsSync(agentJsonPath)) {
+        continue;
+      }
+      try {
+        const raw = deps.fs.readFileSync(agentJsonPath, "utf-8");
+        const parsed = deps.json5.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          continue;
+        }
+        const overrides = parsed as Record<string, unknown>;
+        // Resolve canonical id: prefer file's own id when it matches the dir, else use dir name.
+        const fileId =
+          typeof overrides.id === "string" && overrides.id.trim() ? overrides.id.trim() : dirAgentId;
+        const normalizedFileId = normalizeAgentId(fileId);
+        const normalizedDirId = normalizeAgentId(dirAgentId);
+        if (normalizedFileId !== normalizedDirId) {
+          deps.logger.warn(
+            `[agents/] Skipping ${agentJsonPath}: id "${fileId}" does not match directory "${dirAgentId}"`,
+          );
+          continue;
+        }
+
+        if (!cfg.agents) {
+          cfg.agents = {};
+        }
+        if (!Array.isArray(cfg.agents.list)) {
+          cfg.agents.list = [];
+        }
+
+        const existingIdx = cfg.agents.list.findIndex(
+          (a) => a?.id && normalizeAgentId(a.id) === normalizedDirId,
+        );
+        if (existingIdx >= 0) {
+          cfg.agents.list[existingIdx] = applyMergePatch(
+            cfg.agents.list[existingIdx],
+            overrides,
+          ) as (typeof cfg.agents.list)[number];
+        } else {
+          // New agent: ensure id is set and push
+          cfg.agents.list.push({ ...overrides, id: fileId } as (typeof cfg.agents.list)[number]);
+        }
+      } catch {
+        // best-effort: individual agent.json errors never block startup
+      }
+    }
+  } catch {
+    // best-effort: agents/ directory scan errors never block startup
+  }
+}
+
 export function createConfigIO(overrides: ConfigIoDeps = {}) {
   const deps = normalizeDeps(overrides);
   const requestedConfigPath = resolveConfigPathForDeps(deps);
@@ -631,6 +709,12 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           timeoutMs: cfg.env?.shellEnv?.timeoutMs ?? resolveShellEnvFallbackTimeoutMs(deps.env),
         });
       }
+
+      // agents/ directory scan: load agents/{id}/agent.json files and merge into config.
+      // Each file deep-merges into the matching agents.list entry (id from directory name),
+      // or inserts a new entry when the agent is not yet defined in the base config.
+      // Precedence: agent.json overrides gateway.json; minion.json (below) still wins both.
+      mergeAgentDirConfigs(cfg, stateDir, deps);
 
       // Per-agent config override: .minion/agents/{id}/minion.json (highest priority for agent fields).
       if (cfg.agents?.list) {

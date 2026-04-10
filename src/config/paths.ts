@@ -240,6 +240,26 @@ export function resolveAgentConfigPath(stateDir: string, agentId: string): strin
   return path.join(stateDir, "agents", agentId, "minion.json");
 }
 
+/**
+ * Path to an agent.json file in the agents/ directory hierarchy.
+ * Default: {stateDir}/agents/{agentId}/agent.json
+ *
+ * These files are scanned at startup and deep-merged into agents.list config.
+ * Useful for per-agent Docker resource limits and other overrides without
+ * editing the main gateway.json.
+ */
+export function resolveAgentJsonConfigPath(stateDir: string, agentId: string): string {
+  return path.join(stateDir, "agents", agentId, "agent.json");
+}
+
+/**
+ * Root directory for the agents/ hierarchy.
+ * Default: {stateDir}/agents
+ */
+export function resolveAgentsRootDir(stateDir: string): string {
+  return path.join(stateDir, "agents");
+}
+
 export const DEFAULT_GATEWAY_PORT = 18789;
 
 /**
