@@ -254,14 +254,20 @@ export async function getReplyFromConfig(
 
   // S.2: Check existing session pin before routing. If the session is pinned
   // from a previous message, re-use that model without re-classifying.
+  const sessionFastMode = sessionEntry?.fastMode ?? false;
   const routingEnabled = Boolean(agentCfg?.routing?.enabled);
   const existingPin = routingEnabled && sessionKey ? getSessionPin(sessionKey) : undefined;
+
+  // When fast mode is active, bias the routing profile toward cost-optimized.
+  const effectiveRouting = sessionFastMode && agentCfg?.routing?.enabled
+    ? { ...agentCfg.routing, profile: "cost-optimized" as const }
+    : agentCfg?.routing;
 
   let smartRoute = existingPin
     ? existingPin.routingResult
     : routeMessage({
         message: promptText,
-        routing: agentCfg?.routing,
+        routing: effectiveRouting,
         orchestrator: agentCfg?.orchestrator,
       });
 

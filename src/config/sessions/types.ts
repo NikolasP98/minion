@@ -58,6 +58,8 @@ export type SessionEntry = {
   groupActivation?: "mention" | "always";
   groupActivationNeedsSystemIntro?: boolean;
   sendPolicy?: "allow" | "deny";
+  /** When true, prefer faster/cheaper models for this session. */
+  fastMode?: boolean;
   queueMode?:
     | "steer"
     | "followup"

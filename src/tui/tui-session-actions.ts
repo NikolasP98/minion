@@ -46,6 +46,7 @@ type SessionInfoEntry = {
   outputTokens?: number | null;
   totalTokens?: number | null;
   responseUsage?: "on" | "off" | "tokens" | "full";
+  fastMode?: boolean;
   updatedAt?: number | null;
   displayName?: string;
 };
@@ -203,6 +204,9 @@ export function createSessionActions(context: SessionActionContext) {
     if (entry?.contextTokens !== undefined || defaults?.contextTokens !== undefined) {
       next.contextTokens =
         entry?.contextTokens ?? defaults?.contextTokens ?? state.sessionInfo.contextTokens;
+    }
+    if (entry?.fastMode !== undefined) {
+      next.fastMode = entry.fastMode;
     }
     if (entry?.displayName !== undefined) {
       next.displayName = entry.displayName;

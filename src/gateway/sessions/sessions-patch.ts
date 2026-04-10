@@ -348,6 +348,22 @@ export async function applySessionsPatchToStore(params: {
     }
   }
 
+  if ("fastMode" in patch) {
+    const raw = patch.fastMode;
+    if (raw === null) {
+      delete next.fastMode;
+    } else if (raw !== undefined) {
+      if (typeof raw !== "boolean") {
+        return invalid("invalid fastMode (use true or false)");
+      }
+      if (raw) {
+        next.fastMode = true;
+      } else {
+        delete next.fastMode;
+      }
+    }
+  }
+
   if ("groupActivation" in patch) {
     const raw = patch.groupActivation;
     if (raw === null) {

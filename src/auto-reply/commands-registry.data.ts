@@ -546,6 +546,22 @@ function buildChatCommands(): ChatCommandDefinition[] {
       argsMenu: "auto",
     }),
     defineChatCommand({
+      key: "fast",
+      nativeName: "fast",
+      description: "Toggle fast mode (prefer speed/cost over quality).",
+      textAlias: "/fast",
+      category: "options",
+      args: [
+        {
+          name: "mode",
+          description: "on or off",
+          type: "string",
+          choices: ["on", "off"],
+        },
+      ],
+      argsMenu: "auto",
+    }),
+    defineChatCommand({
       key: "exec",
       nativeName: "exec",
       description: "Set exec defaults for this session.",

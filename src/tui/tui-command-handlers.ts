@@ -410,6 +410,36 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem(`elevated failed: ${String(err)}`);
         }
         break;
+      case "fast": {
+        const fastCurrent = state.sessionInfo.fastMode ?? false;
+        let fastNext: boolean;
+        if (args === "on") {
+          fastNext = true;
+        } else if (args === "off") {
+          fastNext = false;
+        } else if (!args) {
+          fastNext = !fastCurrent;
+        } else {
+          chatLog.addSystem("usage: /fast [on|off]");
+          break;
+        }
+        try {
+          const result = await client.patchSession({
+            key: state.currentSessionKey,
+            fastMode: fastNext ? true : null,
+          });
+          chatLog.addSystem(
+            fastNext
+              ? "fast mode enabled — preferring speed/cost over quality"
+              : "fast mode disabled — using default model routing",
+          );
+          applySessionInfoFromPatch(result);
+          await refreshSessionInfo();
+        } catch (err) {
+          chatLog.addSystem(`fast failed: ${String(err)}`);
+        }
+        break;
+      }
       case "activation":
         if (!args) {
           chatLog.addSystem("usage: /activation <mention|always>");

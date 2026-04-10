@@ -35,6 +35,7 @@ export type SessionInfo = {
   outputTokens?: number | null;
   totalTokens?: number | null;
   responseUsage?: "on" | "off" | "tokens" | "full";
+  fastMode?: boolean;
   updatedAt?: number | null;
   displayName?: string;
 };

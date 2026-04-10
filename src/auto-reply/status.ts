@@ -426,12 +426,14 @@ export function buildStatusMessage(args: StatusArgs): string {
         ? "elevated"
         : `elevated:${elevatedLevel}`
       : null;
+  const fastMode = entry?.fastMode ?? false;
   const optionParts = [
     `Runtime: ${runtime.label}`,
     `Think: ${thinkLevel}`,
     verboseLabel,
     reasoningLevel !== "off" ? `Reasoning: ${reasoningLevel}` : null,
     elevatedLabel,
+    fastMode ? "Fast: on" : null,
   ];
   const optionsLine = optionParts.filter(Boolean).join(" · ");
   const activationParts = [
@@ -537,7 +539,7 @@ export function buildHelpMessage(cfg?: OpenClawConfig): string {
   lines.push("  /new  |  /reset  |  /compact [instructions]  |  /stop");
   lines.push("");
 
-  const optionParts = ["/think <level>", "/model <id>", "/verbose on|off"];
+  const optionParts = ["/think <level>", "/model <id>", "/verbose on|off", "/fast on|off"];
   if (cfg?.commands?.config === true) {
     optionParts.push("/config");
   }

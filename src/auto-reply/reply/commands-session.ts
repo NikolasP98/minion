@@ -243,6 +243,57 @@ export const handleUsageCommand: CommandHandler = async (params, allowTextComman
   };
 };
 
+export const handleFastModeCommand: CommandHandler = async (params, allowTextCommands) => {
+  if (!allowTextCommands) {
+    return null;
+  }
+  const normalized = params.command.commandBodyNormalized;
+  if (normalized !== "/fast" && !normalized.startsWith("/fast ")) {
+    return null;
+  }
+  if (!params.command.isAuthorizedSender) {
+    logVerbose(
+      `Ignoring /fast from unauthorized sender: ${params.command.senderId || "<unknown>"}`,
+    );
+    return { shouldContinue: false };
+  }
+
+  const rawArgs = normalized === "/fast" ? "" : normalized.slice("/fast".length).trim();
+  const current = params.sessionEntry?.fastMode ?? false;
+
+  let next: boolean;
+  if (rawArgs === "on") {
+    next = true;
+  } else if (rawArgs === "off") {
+    next = false;
+  } else if (rawArgs === "") {
+    next = !current;
+  } else {
+    return {
+      shouldContinue: false,
+      reply: { text: "⚙️ Usage: /fast [on|off]" },
+    };
+  }
+
+  if (params.sessionEntry && params.sessionStore && params.sessionKey) {
+    if (next) {
+      params.sessionEntry.fastMode = true;
+    } else {
+      delete params.sessionEntry.fastMode;
+    }
+    await persistSessionEntry(params);
+  }
+
+  return {
+    shouldContinue: false,
+    reply: {
+      text: next
+        ? "⚡ Fast mode enabled — preferring speed/cost over quality."
+        : "⚙️ Fast mode disabled — using default model routing.",
+    },
+  };
+};
+
 export const handleRestartCommand: CommandHandler = async (params, allowTextCommands) => {
   if (!allowTextCommands) {
     return null;
