@@ -2,6 +2,7 @@ import type { SlackActionMiddlewareArgs } from "@slack/bolt";
 import type { Block, KnownBlock } from "@slack/web-api";
 import { enqueueSystemEvent } from "../../../../../infra/system-events.js";
 import { parseSlackModalPrivateMetadata } from "../../modal-metadata.js";
+import { resolveSlackUserAllowed } from "../allow-list.js";
 import type { SlackMonitorContext } from "../context.js";
 
 // Prefix for OpenClaw-generated action IDs to scope our handler
@@ -439,6 +440,20 @@ export function registerSlackInteractionEvents(params: { ctx: SlackMonitorContex
         messageTs,
         threadTs,
       };
+
+      // Enforce user allowlist — prevent unauthorized workspace members from clicking buttons.
+      // This mirrors the check applied to incoming Slack messages in message-handler/prepare.ts.
+      if (
+        !resolveSlackUserAllowed({
+          allowList: ctx.allowFrom,
+          userId,
+        })
+      ) {
+        ctx.runtime.log?.(
+          `slack:interaction blocked unauthorized user=${userId} action=${actionId} channel=${channelId ?? "unknown"}`,
+        );
+        return;
+      }
 
       // Log the interaction for debugging
       ctx.runtime.log?.(
