@@ -1,0 +1,28 @@
+name = "minion-workers"
+main = "intent-classifier.ts"
+compatibility_date = "2024-09-23"
+
+# Each worker is deployed as a separate named script.
+# Use `wrangler deploy --config wrangler.toml --name <worker-name>` per target.
+
+[[env.production.vars]]
+# Injected at deploy time via GitHub Actions secrets (not committed).
+# CF_AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}"
+
+# ── Intent Classifier Worker ──────────────────────────────────────────────────
+[env.intent-classifier]
+name = "minion-intent-classifier"
+main = "intent-classifier.ts"
+compatibility_date = "2024-09-23"
+
+[env.intent-classifier.vars]
+WORKER_NAME = "intent-classifier"
+
+# ── Response Formatter Worker ─────────────────────────────────────────────────
+[env.response-formatter]
+name = "minion-response-formatter"
+main = "response-formatter.ts"
+compatibility_date = "2024-09-23"
+
+[env.response-formatter.vars]
+WORKER_NAME = "response-formatter"
