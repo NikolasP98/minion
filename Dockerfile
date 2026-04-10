@@ -1,8 +1,5 @@
-FROM node:22-bookworm
+FROM node:22-bookworm@sha256:ecabd1cb6956d7acfffe8af6bbfbe2df42362269fd28c227f36367213d0bb777
 
-# Install Bun globally
-ENV BUN_INSTALL=/usr/local
-RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/usr/local/bin:${PATH}"
 
 RUN corepack enable
@@ -14,6 +11,7 @@ WORKDIR /app
 # - jq: for JSON processing in scripts
 # - ffmpeg: for video-frames skill (optional but commonly used)
 # - gosu: for privilege dropping in entrypoint
+# - unzip: required for Bun installation
 ARG MINION_DOCKER_APT_PACKAGES=""
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -22,9 +20,29 @@ RUN apt-get update && \
     ffmpeg \
     gosu \
     poppler-utils \
+    unzip \
     $MINION_DOCKER_APT_PACKAGES && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Install Bun globally - pinned version with SHA256 checksum verification
+ARG BUN_VERSION=1.3.12
+ARG BUN_X64_SHA256=11dc3ee11bc1695e149737c6ca3d5619302cf4346e6b8a6ec7988967ef01ddc5
+ARG BUN_AARCH64_SHA256=c40bc0ebca11bde7d75af497a654a874d0c7fd8d6a8d6031c173c10c9064297b
+ENV BUN_INSTALL=/usr/local
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64) bun_arch="linux-x64";     bun_sha256="${BUN_X64_SHA256}" ;; \
+        arm64) bun_arch="linux-aarch64"; bun_sha256="${BUN_AARCH64_SHA256}" ;; \
+        *) echo "Unsupported arch: $arch" && exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-${bun_arch}.zip" -o /tmp/bun.zip; \
+    echo "${bun_sha256}  /tmp/bun.zip" | sha256sum -c; \
+    unzip /tmp/bun.zip -d /tmp/bun-extract; \
+    mv "/tmp/bun-extract/bun-${bun_arch}/bun" /usr/local/bin/bun; \
+    chmod +x /usr/local/bin/bun; \
+    rm -rf /tmp/bun.zip /tmp/bun-extract
 
 # Install CLI tools from GitHub releases (consolidated into single layer)
 # - gh: GitHub CLI
