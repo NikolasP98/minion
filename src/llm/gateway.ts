@@ -81,10 +81,15 @@ function buildProviderHeaders(
   workspaceId: string | undefined,
   extraHeaders: Record<string, string> = {},
 ): Record<string, string> {
-  const apiKey =
-    provider === "openai"
-      ? ((typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined) ?? "")
-      : ((typeof process !== "undefined" ? process.env.ANTHROPIC_API_KEY : undefined) ?? "");
+  const envVarName = provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+  const apiKey = (typeof process !== "undefined" ? process.env[envVarName] : undefined) ?? "";
+
+  if (!apiKey) {
+    // Warn clearly rather than silently sending requests that will fail with 401.
+    console.warn(
+      `[llm-gateway] ${envVarName} is not set; requests to ${provider} will fail with 401`,
+    );
+  }
 
   const base: Record<string, string> = {
     "Content-Type": "application/json",
