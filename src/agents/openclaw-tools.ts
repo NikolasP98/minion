@@ -225,6 +225,10 @@ function evaluateCondition(condition: string, ctx: ToolContext): boolean {
       const url = ctx.options?.config?.gateway?.omniparserUrl;
       return Boolean(url ?? process.env.OMNIPARSER_URL);
     }
+    case "browseuseEnabled": {
+      const url = ctx.options?.config?.gateway?.browseuseUrl;
+      return Boolean(url ?? process.env.BROWSERUSE_URL);
+    }
     default:
       return true;
   }
