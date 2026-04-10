@@ -48,8 +48,9 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     deltaBuffer: "",
     blockBuffer: "",
     // Track if a streamed chunk opened a <think> block (stateful across chunks).
-    blockState: { thinking: false, final: false, inlineCode: createInlineCodeState() },
-    partialBlockState: { thinking: false, final: false, inlineCode: createInlineCodeState() },
+    // hasSeenContent tracks whether visible content appeared before any <think> tag.
+    blockState: { thinking: false, final: false, inlineCode: createInlineCodeState(), hasSeenContent: false },
+    partialBlockState: { thinking: false, final: false, inlineCode: createInlineCodeState(), hasSeenContent: false },
     lastStreamedAssistant: undefined,
     lastStreamedAssistantCleaned: undefined,
     emittedAssistantUpdate: false,
@@ -108,9 +109,11 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     state.blockState.thinking = false;
     state.blockState.final = false;
     state.blockState.inlineCode = createInlineCodeState();
+    state.blockState.hasSeenContent = false;
     state.partialBlockState.thinking = false;
     state.partialBlockState.final = false;
     state.partialBlockState.inlineCode = createInlineCodeState();
+    state.partialBlockState.hasSeenContent = false;
     state.lastStreamedAssistant = undefined;
     state.lastStreamedAssistantCleaned = undefined;
     state.emittedAssistantUpdate = false;
@@ -358,7 +361,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
 
   const stripBlockTags = (
     text: string,
-    state: { thinking: boolean; final: boolean; inlineCode?: InlineCodeState },
+    state: { thinking: boolean; final: boolean; inlineCode?: InlineCodeState; hasSeenContent?: boolean },
   ): string => {
     if (!text) {
       return text;
@@ -368,26 +371,56 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     const codeSpans = buildCodeSpanIndex(text, inlineStateStart);
 
     // 1. Handle <think> blocks (stateful, strip content inside)
+    // Only open a new thinking block when no visible content has appeared yet in this
+    // message turn. This prevents <think> tags that appear in prose context — e.g. echoed
+    // from a tool result or user message — from suppressing legitimate streaming output.
+    // A <think> tag that opens before any visible content is genuine model reasoning;
+    // one that appears after visible content is treated as prose and preserved as-is.
     let processed = "";
     THINKING_TAG_SCAN_RE.lastIndex = 0;
     let lastIndex = 0;
     let inThinking = state.thinking;
+    let hasSeenContent = state.hasSeenContent ?? false;
     for (const match of text.matchAll(THINKING_TAG_SCAN_RE)) {
       const idx = match.index ?? 0;
       if (codeSpans.isInside(idx)) {
         continue;
       }
-      if (!inThinking) {
-        processed += text.slice(lastIndex, idx);
-      }
       const isClose = match[1] === "/";
-      inThinking = !isClose;
-      lastIndex = idx + match[0].length;
+      if (inThinking) {
+        // Inside a reasoning block: only a closing tag can end it.
+        if (isClose) {
+          inThinking = false;
+        }
+        lastIndex = idx + match[0].length;
+      } else {
+        // Outside a reasoning block.
+        const before = text.slice(lastIndex, idx);
+        processed += before;
+        if (before.trim()) {
+          hasSeenContent = true;
+        }
+        if (!isClose && !hasSeenContent) {
+          // Opening <think> tag before any visible content → genuine reasoning block.
+          inThinking = true;
+          lastIndex = idx + match[0].length;
+        } else {
+          // Either a stray closing tag, or an opening tag after visible content (prose
+          // context). In both cases, preserve the tag as-is rather than suppressing.
+          processed += match[0];
+          lastIndex = idx + match[0].length;
+        }
+      }
     }
     if (!inThinking) {
-      processed += text.slice(lastIndex);
+      const remaining = text.slice(lastIndex);
+      processed += remaining;
+      if (remaining.trim()) {
+        hasSeenContent = true;
+      }
     }
     state.thinking = inThinking;
+    state.hasSeenContent = hasSeenContent;
 
     // 2. Handle <final> blocks (stateful, strip content OUTSIDE)
     // If enforcement is disabled, we still strip the tags themselves to prevent
