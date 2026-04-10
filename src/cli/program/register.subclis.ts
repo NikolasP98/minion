@@ -286,6 +286,15 @@ const entries: SubCliEntry[] = [
       mod.registerCompletionCli(program);
     },
   },
+  {
+    name: "audit",
+    description: "EU AI Act Article 50 compliance tools and transparency reports",
+    hasSubcommands: true,
+    register: async (program) => {
+      const mod = await import("../audit-cli.js");
+      mod.registerAuditCli(program);
+    },
+  },
 ];
 
 export function getSubCliEntries(): SubCliEntry[] {
