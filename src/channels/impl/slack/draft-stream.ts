@@ -39,6 +39,12 @@ export function createSlackDraftStream(params: {
   let streamChannelId: string | undefined;
   let lastSentText = "";
   let stopped = false;
+  // Sentinel: true when the platform accepted our initial send but returned no
+  // editable message identifier (e.g. Slack webhook mode, where response.ts is
+  // absent and send.ts falls back to "unknown").  In this state we must NOT
+  // reset the IDs at tool boundaries — doing so re-enters the first-send path
+  // and produces a duplicate message for every tool boundary.
+  let platformAcceptedNotEditable = false;
 
   const sendOrEditStreamMessage = async (text: string) => {
     if (stopped) {
@@ -59,6 +65,11 @@ export function createSlackDraftStream(params: {
     lastSentText = trimmed;
     try {
       if (streamChannelId && streamMessageId) {
+        if (platformAcceptedNotEditable) {
+          // Platform accepted the first send but returned no editable identifier —
+          // silently skip further streaming updates to avoid API errors.
+          return;
+        }
         await edit(streamChannelId, streamMessageId, trimmed, {
           token: params.token,
           accountId: params.accountId,
@@ -76,6 +87,12 @@ export function createSlackDraftStream(params: {
         stopped = true;
         params.warn?.("slack stream preview stopped (missing identifiers from sendMessage)");
         return;
+      }
+      if (streamMessageId === "unknown") {
+        platformAcceptedNotEditable = true;
+        params.log?.(
+          "slack stream preview: platform accepted send but returned no message id (webhook mode?) — streaming updates disabled",
+        );
       }
       params.onMessageSent?.();
     } catch (err) {
@@ -104,7 +121,7 @@ export function createSlackDraftStream(params: {
     streamChannelId = undefined;
     streamMessageId = undefined;
     lastSentText = "";
-    if (!channelId || !messageId) {
+    if (!channelId || !messageId || platformAcceptedNotEditable) {
       return;
     }
     try {
@@ -120,6 +137,14 @@ export function createSlackDraftStream(params: {
   };
 
   const forceNewMessage = () => {
+    if (platformAcceptedNotEditable) {
+      // Sentinel active: the platform accepted the first send but cannot edit it.
+      // Resetting the IDs here would re-enter the first-send path on the next
+      // update and create a duplicate message per tool boundary.  Skip the reset.
+      lastSentText = "";
+      loop.resetPending();
+      return;
+    }
     streamMessageId = undefined;
     streamChannelId = undefined;
     lastSentText = "";

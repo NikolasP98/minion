@@ -122,6 +122,95 @@ describe("createSlackDraftStream", () => {
     expect(remove).not.toHaveBeenCalled();
   });
 
+  describe("platformAcceptedNotEditable sentinel (webhook / no-message-id mode)", () => {
+    it("does not create duplicate messages at tool boundaries when send returns unknown messageId", async () => {
+      // Simulates Slack webhook mode: send succeeds but returns no ts → "unknown"
+      const send = vi.fn<DraftSendFn>(async () => ({
+        channelId: "C123",
+        messageId: "unknown",
+      }));
+      const { stream, edit } = createDraftStreamHarness({ send });
+
+      // First update — enters first-send path, gets "unknown" messageId
+      stream.update("hello");
+      await stream.flush();
+      expect(send).toHaveBeenCalledTimes(1);
+
+      // Tool boundary — forceNewMessage() must NOT reset IDs
+      stream.forceNewMessage();
+
+      // Second update — must NOT re-enter first-send path
+      stream.update("hello world");
+      await stream.flush();
+
+      expect(send).toHaveBeenCalledTimes(1); // no new send
+      expect(edit).not.toHaveBeenCalled(); // no edit attempt with "unknown"
+    });
+
+    it("skips edit API calls silently when sentinel is active", async () => {
+      const send = vi.fn<DraftSendFn>(async () => ({
+        channelId: "C123",
+        messageId: "unknown",
+      }));
+      const edit = vi.fn<DraftEditFn>(async () => {});
+      const stream = createSlackDraftStream({
+        target: "channel:C123",
+        token: "xoxb-test",
+        throttleMs: 250,
+        send,
+        edit,
+      });
+
+      stream.update("first");
+      await stream.flush();
+      // Without forceNewMessage: streamChannelId + streamMessageId are set,
+      // so the next update hits the edit branch — sentinel should make it a no-op
+      stream.update("second");
+      await stream.flush();
+
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(edit).not.toHaveBeenCalled();
+    });
+
+    it("does not attempt to delete message when sentinel is active", async () => {
+      const send = vi.fn<DraftSendFn>(async () => ({
+        channelId: "C123",
+        messageId: "unknown",
+      }));
+      const remove = vi.fn<DraftRemoveFn>(async () => {});
+      const { stream } = createDraftStreamHarness({ send, remove });
+
+      stream.update("hello");
+      await stream.flush();
+      await stream.clear();
+
+      expect(remove).not.toHaveBeenCalled();
+    });
+
+    it("allows subsequent forceNewMessage calls without creating extra sends", async () => {
+      const send = vi.fn<DraftSendFn>(async () => ({
+        channelId: "C123",
+        messageId: "unknown",
+      }));
+      const { stream } = createDraftStreamHarness({ send });
+
+      stream.update("update 1");
+      await stream.flush();
+      stream.forceNewMessage();
+      stream.update("update 2");
+      await stream.flush();
+      stream.forceNewMessage();
+      stream.update("update 3");
+      await stream.flush();
+      stream.forceNewMessage();
+      stream.update("update 4");
+      await stream.flush();
+
+      // Only the very first send should have gone out
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("clear warns when cleanup fails", async () => {
     const remove = vi.fn<DraftRemoveFn>(async () => {
       throw new Error("cleanup failed");
