@@ -134,6 +134,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.14.1",
+    "livekit-server-sdk": "^2.9.0",
     "@aws-sdk/client-bedrock": "^3.992.0",
     "@buape/carbon": "0.14.0",
     "@clack/prompts": "^1.0.1",
