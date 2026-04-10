@@ -1,4 +1,14 @@
 services:
+  # Optional Redis service for stateless horizontal scaling.
+  # Remove or comment out this service for single-instance deployments.
+  # When present, REDIS_URL is automatically wired to minion-gateway.
+  minion-redis:
+    image: redis:7-alpine
+    container_name: ${MINION_REDIS_CONTAINER_NAME:-minion_redis}
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    # Redis data is ephemeral by design — all cached state has TTLs.
+
   minion-gateway:
     platform: ${MINION_DOCKER_PLATFORM:-linux/amd64}
     container_name: ${MINION_GATEWAY_CONTAINER_NAME:-minion_gateway}
@@ -12,6 +22,8 @@ services:
         # To use minimal (no fonts): MINION_DOCKER_APT_PACKAGES="chromium"
         # To use full (with VNC): MINION_DOCKER_APT_PACKAGES="chromium fonts-liberation fonts-noto-color-emoji xvfb x11vnc novnc websockify socat"
         MINION_DOCKER_APT_PACKAGES: "${MINION_DOCKER_APT_PACKAGES:-chromium fonts-liberation fonts-noto-color-emoji}"
+    depends_on:
+      - minion-redis
     environment:
       HOME: /home/node
       TERM: xterm-256color
@@ -22,6 +34,9 @@ services:
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # Set by the minion-redis service above. Override with an external Redis URL
+      # (e.g. Upstash, ElastiCache) for production multi-instance deployments.
+      REDIS_URL: ${REDIS_URL:-redis://minion-redis:6379}
     volumes:
       - ${MINION_CONFIG_DIR:-~/.minion}:/home/node/.minion
       - ${MINION_WORKSPACE_DIR:-~/.minion/workspace}:/home/node/.minion/workspace

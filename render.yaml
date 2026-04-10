@@ -15,7 +15,22 @@ services:
         value: /data/workspace
       - key: MINION_GATEWAY_TOKEN
         generateValue: true
+      # Required for stateless horizontal scaling (multiple instances / numInstances > 1).
+      # Reference the Redis service defined below, or provide an external Redis URL.
+      # Single-instance deployments can omit this.
+      - key: REDIS_URL
+        fromService:
+          name: minion-redis
+          type: redis
+          property: connectionString
     disk:
       name: minion-data
       mountPath: /data
       sizeGB: 1
+
+  # Redis for distributed state (mesh run cache, agent lifecycle pub/sub, event dedup).
+  # Remove this service (and the REDIS_URL env var above) for single-instance deployments.
+  - type: redis
+    name: minion-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru

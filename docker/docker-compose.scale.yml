@@ -1,0 +1,46 @@
+# Multi-instance overlay for horizontal gateway scaling.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker/docker-compose.scale.yml up
+#
+# This overlay adds:
+#   - Two extra gateway replicas (minion-gateway-2, minion-gateway-3)
+#   - An nginx load balancer on ports 18789/18790 (round-robin, no sticky sessions)
+#
+# Prerequisites:
+#   - REDIS_URL must be set (provided automatically by docker-compose.yml's
+#     minion-redis service, or override with an external Redis URL)
+#   - All replicas share the same ~/.minion config volume
+
+services:
+  minion-gateway-2:
+    extends:
+      file: ../docker-compose.yml
+      service: minion-gateway
+    container_name: minion_gateway_2
+    ports: []  # nginx handles external ports
+
+  minion-gateway-3:
+    extends:
+      file: ../docker-compose.yml
+      service: minion-gateway
+    container_name: minion_gateway_3
+    ports: []  # nginx handles external ports
+
+  # Override gateway-1 to remove its direct port exposure
+  minion-gateway:
+    ports: []
+
+  minion-nginx:
+    image: nginx:stable-alpine
+    container_name: minion_nginx
+    depends_on:
+      - minion-gateway
+      - minion-gateway-2
+      - minion-gateway-3
+    volumes:
+      - ./nginx-scale.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${MINION_GATEWAY_PORT:-18789}:18789"
+      - "${MINION_BRIDGE_PORT:-18790}:18790"
+    restart: unless-stopped
