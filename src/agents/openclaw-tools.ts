@@ -91,6 +91,7 @@ const TOOL_ORDER: string[] = [
   "venture_studio",
   "knowledge_graph",
   "summarize",
+  "parse_screen",
 ];
 
 /**
@@ -195,6 +196,8 @@ function buildToolOptions(id: string, ctx: ToolContext): Record<string, unknown>
       return { workspaceDir: ctx.workspaceDir };
     case "venture_studio":
       return { workspaceDir: ctx.workspaceDir };
+    case "parse_screen":
+      return { config: opts?.config };
     case "knowledge_graph":
       // KG factory takes a positional arg, not an options bag.
       // Handled specially in the main loop.
@@ -218,6 +221,10 @@ function evaluateCondition(condition: string, ctx: ToolContext): boolean {
       return !!ctx.options?.agentDir?.trim();
     case "messageEnabled":
       return !ctx.options?.disableMessageTool;
+    case "omniparserEnabled": {
+      const url = ctx.options?.config?.gateway?.omniparserUrl;
+      return Boolean(url ?? process.env.OMNIPARSER_URL);
+    }
     default:
       return true;
   }

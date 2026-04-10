@@ -149,6 +149,15 @@ export function registerBuiltinTools(): void {
 
     // Canvas
     { name: "canvas", description: "Present/eval/snapshot Canvas", riskTier: "low", category: "browser" },
+
+    // Vision — medium risk (external service call)
+    {
+      name: "parse_screen",
+      description: "Detect and label interactive UI elements in a screenshot",
+      riskTier: "medium",
+      category: "browser",
+      rateLimit: { maxCalls: 20, windowSecs: 60 },
+    },
   ];
 
   for (const tool of builtins) {

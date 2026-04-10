@@ -346,4 +346,11 @@ export type GatewayConfig = {
   };
   /** Hub metrics push configuration. */
   hubMetrics?: HubMetricsConfig;
+  /**
+   * OmniParser-v2 service URL for the `parse_screen` tool.
+   * Example: "http://omniparser:8080"
+   * When unset, the tool falls back to the OMNIPARSER_URL environment variable.
+   * If neither is set, the parse_screen tool is disabled.
+   */
+  omniparserUrl?: string;
 };

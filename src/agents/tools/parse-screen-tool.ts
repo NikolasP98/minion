@@ -17,7 +17,7 @@ import { loadConfig } from "../../config/config.js";
 import { wrapToolWithTracking } from "../../logging/tool-tracking.js";
 import { stringEnum } from "../schema/typebox.js";
 import type { AnyAgentTool } from "./common.js";
-import { ToolInputError, readStringParam } from "./common.js";
+import { readStringParam } from "./common.js";
 
 const DETAIL_LEVELS = ["low", "high"] as const;
 
@@ -53,7 +53,7 @@ function resolveServiceUrl(opts: {
   if (opts.omniparserUrl) {
     return opts.omniparserUrl;
   }
-  const cfgUrl = (opts.config ?? loadConfig())?.gateway?.omniparserUrl as string | undefined;
+  const cfgUrl = (opts.config ?? loadConfig())?.gateway?.omniparserUrl;
   if (cfgUrl) {
     return cfgUrl;
   }
