@@ -13,7 +13,9 @@ export type DataCategory =
   | "credentials" // tokens, API keys, passwords
   | "file_content" // uploaded files/documents
   | "metadata" // timestamps, session IDs (non-personal)
-  | "tool_output"; // responses from external tools
+  | "tool_output" // responses from external tools
+  | "health_info" // PHI: medical records, conditions, prescriptions, insurance IDs (HIPAA)
+  | "financial_info"; // PCI: credit card numbers, bank accounts, SSN/TIN, transactions (PCI-DSS)
 
 export type ConsentScope = "implicit" | "explicit" | "none";
 

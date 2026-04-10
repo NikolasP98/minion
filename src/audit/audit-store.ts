@@ -24,6 +24,14 @@ export class AuditStore {
   private readonly dir: string;
   private readonly enabled: boolean;
 
+  /**
+   * Internal write queue that serializes appends so that concurrent
+   * fire-and-forget calls from the audit plugin are written in the
+   * order they were enqueued — not in whatever order their I/O
+   * happens to settle.
+   */
+  private writeChain: Promise<void> = Promise.resolve();
+
   constructor(opts: AuditStoreOptions) {
     this.dir = opts.dir;
     this.enabled = opts.enabled;
@@ -37,14 +45,23 @@ export class AuditStore {
   /**
    * Append one AuditEntry to today's log file.
    *
-   * Flushes to disk after each write (compliance: no buffering).
+   * Writes are serialized through an internal queue so that concurrent
+   * fire-and-forget calls (e.g. from the audit plugin's after_tool_call
+   * hook) are written in enqueue order, not in I/O-settlement order.
+   *
+   * Each write is flushed to disk immediately (compliance: no buffering).
    * Creates the log directory if it does not exist.
    */
-  async append(entry: AuditEntry): Promise<void> {
+  append(entry: AuditEntry): Promise<void> {
     if (!this.enabled) {
-      return;
+      return Promise.resolve();
     }
 
+    this.writeChain = this.writeChain.then(() => this.writeEntry(entry));
+    return this.writeChain;
+  }
+
+  private async writeEntry(entry: AuditEntry): Promise<void> {
     await fs.promises.mkdir(this.dir, { recursive: true });
 
     const filePath = this.getFilePath(new Date());

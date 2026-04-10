@@ -84,6 +84,8 @@ function detectViolations(
     "credentials",
     "user_identity",
     "user_location",
+    "health_info",
+    "financial_info",
   ]);
   const hasSensitiveData = paramCategories.some((cat) => sensitiveCategories.has(cat));
 
