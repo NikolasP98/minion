@@ -286,7 +286,13 @@ export function buildGatewayCronService(params: {
             "Content-Type": "application/json",
           };
           if (webhookToken) {
-            headers.Authorization = `Bearer ${webhookToken}`;
+            // Strip CR/LF from the token to prevent HTTP header injection (CRLF injection).
+            // undici rejects headers with control characters, but we sanitize explicitly
+            // to fail fast and avoid ambiguous behavior if the HTTP layer changes.
+            const safeToken = webhookToken.replace(/[\r\n]/g, "");
+            if (safeToken) {
+              headers.Authorization = `Bearer ${safeToken}`;
+            }
           }
           const abortController = new AbortController();
           const timeout = setTimeout(() => {
