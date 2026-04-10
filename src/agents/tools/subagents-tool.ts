@@ -49,7 +49,36 @@ const MAX_STEER_MESSAGE_CHARS = 4_000;
 const STEER_RATE_LIMIT_MS = 2_000;
 const STEER_ABORT_SETTLE_TIMEOUT_MS = 5_000;
 
+// Bounded rate-limit map for steer actions, keyed by caller:child session pair.
+// Without a size cap this map grows unboundedly as unique session pairs accumulate,
+// enabling a DoS via memory exhaustion with crafted session keys.
+const STEER_RATE_LIMIT_MAX_ENTRIES = 10_000;
 const steerRateLimit = new Map<string, number>();
+
+function pruneSteerRateLimit(now: number): void {
+  if (steerRateLimit.size < STEER_RATE_LIMIT_MAX_ENTRIES) {
+    return;
+  }
+  // Evict entries whose timestamps are older than the rate-limit window — they
+  // no longer serve any purpose and freeing them first avoids discarding live entries.
+  for (const [key, ts] of steerRateLimit.entries()) {
+    if (now - ts >= STEER_RATE_LIMIT_MS) {
+      steerRateLimit.delete(key);
+    }
+  }
+  // If still at capacity after TTL eviction, remove the oldest half (FIFO).
+  if (steerRateLimit.size >= STEER_RATE_LIMIT_MAX_ENTRIES) {
+    const toDelete = Math.ceil(steerRateLimit.size / 2);
+    let deleted = 0;
+    for (const key of steerRateLimit.keys()) {
+      if (deleted >= toDelete) {
+        break;
+      }
+      steerRateLimit.delete(key);
+      deleted++;
+    }
+  }
+}
 
 const SubagentsToolSchema = Type.Object({
   action: optionalStringEnum(SUBAGENT_ACTIONS),
@@ -572,6 +601,7 @@ export function createSubagentsTool(opts?: { agentSessionKey?: string }): AnyAge
             error: "Steer rate limit exceeded. Wait a moment before sending another steer.",
           });
         }
+        pruneSteerRateLimit(now);
         steerRateLimit.set(rateKey, now);
 
         // Suppress announce for the interrupted run before aborting so we don't
