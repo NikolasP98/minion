@@ -42,6 +42,11 @@ function resolveForegroundMs(cfg: OpenClawConfig): number {
   if (typeof raw !== "number" || Number.isNaN(raw)) {
     return DEFAULT_FOREGROUND_MS;
   }
+  if (raw > MAX_FOREGROUND_MS) {
+    throw new RangeError(
+      `bashForegroundMs ${raw}ms exceeds the ${MAX_FOREGROUND_MS}ms cap — uncapped foreground timeouts can cause session deadlocks.`,
+    );
+  }
   return clampInt(raw, 0, MAX_FOREGROUND_MS);
 }
 

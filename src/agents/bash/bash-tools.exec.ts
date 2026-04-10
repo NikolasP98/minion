@@ -269,6 +269,13 @@ export function createExecTool(
         throw new Error("Provide a command to start.");
       }
 
+      const MAX_YIELD_MS = 120_000;
+      if (typeof params.yieldMs === "number" && params.yieldMs > MAX_YIELD_MS) {
+        throw new RangeError(
+          `yieldMs ${params.yieldMs}ms exceeds the ${MAX_YIELD_MS}ms cap — uncapped foreground windows can cause session deadlocks.`,
+        );
+      }
+
       const maxOutput = DEFAULT_MAX_OUTPUT;
       const pendingMaxOutput = DEFAULT_PENDING_MAX_OUTPUT;
       const warnings: string[] = [];
@@ -285,7 +292,7 @@ export function createExecTool(
               params.yieldMs ?? defaultBackgroundMs,
               defaultBackgroundMs,
               10,
-              120_000,
+              MAX_YIELD_MS,
             )
         : null;
       const elevatedDefaults = defaults?.elevated;

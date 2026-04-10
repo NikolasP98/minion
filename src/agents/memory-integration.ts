@@ -59,6 +59,20 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+/**
+ * Estimate tokens with a try/catch boundary so a future tokenizer swap
+ * (e.g. tiktoken) cannot corrupt the memory context build on bad input.
+ * Falls back to a conservative over-estimate (maxTokens) so the caller
+ * treats the block as too large rather than silently under-counting.
+ */
+function estimateTokensSafe(text: string, fallback: number): number {
+  try {
+    return estimateTokens(text);
+  } catch {
+    return fallback;
+  }
+}
+
 // ── Entity mention detection ───────────────────────────────────────────────────
 
 /**
@@ -189,11 +203,11 @@ export function buildMemoryContext(
     }
 
     const block = lines.join("\n");
-    const blockTokens = estimateTokens(block);
+    const blockTokens = estimateTokensSafe(block, maxTokens);
     if (totalTokens + blockTokens > maxTokens) {
       // Try a truncated version
       const truncated = `**${entity.label}** (${entity.type})`;
-      const truncTokens = estimateTokens(truncated);
+      const truncTokens = estimateTokensSafe(truncated, maxTokens);
       if (totalTokens + truncTokens <= maxTokens) {
         sections.push(truncated);
         totalTokens += truncTokens;

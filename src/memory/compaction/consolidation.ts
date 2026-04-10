@@ -143,20 +143,33 @@ export async function consolidateMemory(params: {
   }
 
   // 2. Read daily notes (truncate at budget)
+  // Each file is capped at the remaining char budget. If a single file exceeds the
+  // entire budget it is truncated rather than skipped — ensuring at least one note
+  // is always processed when notes exist.
   let totalChars = 0;
   const noteContents: string[] = [];
   const processedFiles: string[] = [];
   for (const fileName of noteFiles) {
+    const remaining = maxInputChars - totalChars;
+    if (remaining <= 0) {
+      break;
+    }
     const content = await readFileSafe(path.join(memoryDir, fileName));
     if (!content.trim()) {
       continue;
     }
-    if (totalChars + content.length > maxInputChars) {
+    // Cap this file's contribution to the remaining budget.
+    const chunk = content.length > remaining ? content.slice(0, remaining) : content;
+    if (!chunk.trim()) {
+      continue;
+    }
+    noteContents.push(`### ${fileName}\n${chunk}`);
+    processedFiles.push(fileName);
+    totalChars += chunk.length;
+    if (content.length > remaining) {
+      // Budget exhausted after this file; stop processing further files.
       break;
     }
-    noteContents.push(`### ${fileName}\n${content}`);
-    processedFiles.push(fileName);
-    totalChars += content.length;
   }
 
   if (noteContents.length === 0) {

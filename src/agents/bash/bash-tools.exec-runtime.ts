@@ -123,6 +123,7 @@ export const execSchema = Type.Object({
   yieldMs: Type.Optional(
     Type.Number({
       description: "Milliseconds to wait before backgrounding (default 10000)",
+      maximum: 120_000,
     }),
   ),
   background: Type.Optional(Type.Boolean({ description: "Run in background immediately" })),
