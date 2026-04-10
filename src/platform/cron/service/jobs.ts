@@ -350,6 +350,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     description: normalizeOptionalText(input.description),
     enabled,
     deleteAfterRun,
+    protected: input.protected === true ? true : undefined,
     createdAtMs: now,
     updatedAtMs: now,
     schedule,

@@ -125,6 +125,9 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
     warnIfDisabled(state, "update");
     await ensureLoaded(state, { skipRecompute: true });
     const job = findJobOrThrow(state, id);
+    if (job.protected) {
+      throw new Error(`cron job "${job.name}" is protected and cannot be updated`);
+    }
     const now = state.deps.nowMs();
     applyJobPatch(job, patch);
     if (job.schedule.kind === "every") {
@@ -178,10 +181,14 @@ export async function remove(state: CronServiceState, id: string) {
   return await locked(state, async () => {
     warnIfDisabled(state, "remove");
     await ensureLoaded(state);
-    const before = state.store?.jobs.length ?? 0;
     if (!state.store) {
       return { ok: false, removed: false } as const;
     }
+    const target = state.store.jobs.find((j) => j.id === id);
+    if (target?.protected) {
+      throw new Error(`cron job "${target.name}" is protected and cannot be deleted`);
+    }
+    const before = state.store.jobs.length;
     state.store.jobs = state.store.jobs.filter((j) => j.id !== id);
     const removed = (state.store.jobs.length ?? 0) !== before;
     await persist(state);

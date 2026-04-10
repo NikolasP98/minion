@@ -171,6 +171,7 @@ export const CronJobSchema = Type.Object(
     description: Type.Optional(Type.String()),
     enabled: Type.Boolean(),
     deleteAfterRun: Type.Optional(Type.Boolean()),
+    protected: Type.Optional(Type.Boolean()),
     createdAtMs: Type.Integer({ minimum: 0 }),
     updatedAtMs: Type.Integer({ minimum: 0 }),
     schedule: CronScheduleSchema,
@@ -196,6 +197,7 @@ export const CronAddParamsSchema = Type.Object(
   {
     name: NonEmptyString,
     ...CronCommonOptionalFields,
+    protected: Type.Optional(Type.Boolean()),
     scope: Type.Optional(Type.Union([Type.Literal("universal"), Type.Literal("session")])),
     schedule: CronScheduleSchema,
     sessionTarget: CronSessionTargetSchema,
