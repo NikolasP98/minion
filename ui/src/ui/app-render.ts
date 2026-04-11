@@ -26,6 +26,8 @@ import {
   removeCronJob,
   addCronJob,
   normalizeCronFormState,
+  saveAlwaysOnJob,
+  type AlwaysOnScheduleState,
 } from "./controllers/cron.ts";
 import { loadDebug, callDebugMethod } from "./controllers/debug.ts";
 import {
@@ -354,9 +356,11 @@ export function renderApp(state: AppViewState) {
                 channelsSnapshot: state.channelsSnapshot,
                 channelsLastSuccess: state.channelsLastSuccess,
                 cronLoading: state.cronLoading,
+                cronBusy: state.cronBusy,
                 cronStatus: state.cronStatus,
                 cronJobs: state.cronJobs,
                 cronError: state.cronError,
+                alwaysOnSchedule: state.alwaysOnSchedule,
                 agentFilesLoading: state.agentFilesLoading,
                 agentFilesError: state.agentFilesError,
                 agentFilesList: state.agentFilesList,
@@ -466,6 +470,12 @@ export function renderApp(state: AppViewState) {
                 onConfigSave: () => saveConfig(state),
                 onChannelsRefresh: () => loadChannels(state, false),
                 onCronRefresh: () => state.loadCron(),
+                onAlwaysOnScheduleChange: (patch: Partial<AlwaysOnScheduleState>) => {
+                  state.alwaysOnSchedule = { ...state.alwaysOnSchedule, ...patch };
+                },
+                onAlwaysOnSave: (agentId, schedule, enabled) => {
+                  void saveAlwaysOnJob(state, agentId, schedule, enabled);
+                },
                 onSkillsFilterChange: (next) => (state.skillsFilter = next),
                 onSkillsRefresh: () => {
                   if (resolvedAgentId) {

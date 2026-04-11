@@ -1,6 +1,14 @@
 import { html, nothing } from "lit";
 import { formatRelativeTimestamp } from "../format.ts";
 import {
+  ALWAYS_ON_JOB_NAME_PREFIX,
+  buildAlwaysOnSchedule,
+  defaultAlwaysOnSchedule,
+  findAlwaysOnJob,
+  type AlwaysOnPreset,
+  type AlwaysOnScheduleState,
+} from "../controllers/cron.js";
+import {
   formatCronPayload,
   formatCronSchedule,
   formatCronState,
@@ -15,6 +23,18 @@ import type {
   CronStatus,
 } from "../types.ts";
 import { formatBytes, type AgentContext } from "./agents-utils.ts";
+
+// ── Always-On preset labels ───────────────────────────────────────────────────
+
+const PRESET_LABELS: Record<AlwaysOnPreset, string> = {
+  "5m": "Every 5 minutes",
+  "15m": "Every 15 minutes",
+  "30m": "Every 30 minutes",
+  "1h": "Every hour",
+  "6h": "Every 6 hours",
+  nightly: "Nightly at 2am",
+  custom: "Custom cron…",
+};
 
 function renderAgentContextCard(context: AgentContext, subtitle: string) {
   return html`
@@ -271,10 +291,125 @@ export function renderAgentCron(params: {
   status: CronStatus | null;
   loading: boolean;
   error: string | null;
+  busy: boolean;
+  alwaysOnSchedule: AlwaysOnScheduleState;
   onRefresh: () => void;
+  onAlwaysOnScheduleChange: (patch: Partial<AlwaysOnScheduleState>) => void;
+  onAlwaysOnSave: (schedule: AlwaysOnScheduleState, enabled: boolean) => void;
 }) {
-  const jobs = params.jobs.filter((job) => job.agentId === params.agentId);
+  const jobs = params.jobs.filter(
+    (job) => job.agentId === params.agentId && !job.name.startsWith(ALWAYS_ON_JOB_NAME_PREFIX),
+  );
+  const alwaysOnJob = findAlwaysOnJob(params.jobs, params.agentId);
+  const alwaysOnEnabled = alwaysOnJob !== null;
+  const schedule = params.alwaysOnSchedule;
+
+  let schedulePreviewError: string | null = null;
+  try {
+    buildAlwaysOnSchedule(schedule);
+  } catch (e) {
+    schedulePreviewError = String(e);
+  }
   return html`
+    <!-- Always-On section -->
+    <section class="card">
+      <div class="row" style="justify-content: space-between; align-items: flex-start;">
+        <div>
+          <div class="card-title">Always-On</div>
+          <div class="card-sub">
+            Heartbeat schedule — agent wakes automatically on this interval.
+            ${alwaysOnJob
+              ? html`<span class="chip chip-ok" style="margin-left:6px;">active</span>`
+              : nothing}
+          </div>
+        </div>
+        <label class="toggle" style="margin-top:4px;">
+          <input
+            type="checkbox"
+            ?checked=${alwaysOnEnabled}
+            ?disabled=${params.busy || params.loading}
+            @change=${(e: Event) => {
+              const checked = (e.target as HTMLInputElement).checked;
+              params.onAlwaysOnSave(schedule, checked);
+            }}
+          />
+          <span class="toggle-label">${alwaysOnEnabled ? "On" : "Off"}</span>
+        </label>
+      </div>
+
+      <div class="form-row" style="margin-top: 16px;">
+        <label class="form-label">Schedule</label>
+        <select
+          class="form-select"
+          ?disabled=${params.busy}
+          @change=${(e: Event) => {
+            params.onAlwaysOnScheduleChange({
+              preset: (e.target as HTMLSelectElement).value as AlwaysOnPreset,
+            });
+          }}
+        >
+          ${(Object.keys(PRESET_LABELS) as AlwaysOnPreset[]).map(
+            (p) => html`<option value=${p} ?selected=${schedule.preset === p}>${PRESET_LABELS[p]}</option>`,
+          )}
+        </select>
+      </div>
+
+      ${
+        schedule.preset === "custom"
+          ? html`
+              <div class="form-row" style="margin-top: 8px;">
+                <label class="form-label">Cron expression</label>
+                <input
+                  class="form-input mono"
+                  type="text"
+                  placeholder="e.g. 0 */6 * * *"
+                  .value=${schedule.customCronExpr}
+                  ?disabled=${params.busy}
+                  @input=${(e: Event) => {
+                    params.onAlwaysOnScheduleChange({
+                      customCronExpr: (e.target as HTMLInputElement).value,
+                    });
+                  }}
+                />
+              </div>
+              <div class="form-row" style="margin-top: 4px;">
+                <label class="form-label">Timezone (optional)</label>
+                <input
+                  class="form-input"
+                  type="text"
+                  placeholder="e.g. America/New_York"
+                  .value=${schedule.customCronTz}
+                  ?disabled=${params.busy}
+                  @input=${(e: Event) => {
+                    params.onAlwaysOnScheduleChange({
+                      customCronTz: (e.target as HTMLInputElement).value,
+                    });
+                  }}
+                />
+              </div>
+            `
+          : nothing
+      }
+
+      ${schedulePreviewError
+        ? html`<div class="callout danger" style="margin-top:8px;">${schedulePreviewError}</div>`
+        : nothing}
+
+      ${alwaysOnEnabled
+        ? html`
+            <div style="margin-top: 12px;">
+              <button
+                class="btn btn--sm"
+                ?disabled=${params.busy || !!schedulePreviewError}
+                @click=${() => params.onAlwaysOnSave(schedule, true)}
+              >
+                ${params.busy ? "Saving…" : "Update schedule"}
+              </button>
+            </div>
+          `
+        : nothing}
+    </section>
+
     <section class="grid grid-cols-2">
       ${renderAgentContextCard(params.context, "Workspace and scheduling targets.")}
       <section class="card">
@@ -311,8 +446,8 @@ export function renderAgentCron(params: {
       </section>
     </section>
     <section class="card">
-      <div class="card-title">Agent Cron Jobs</div>
-      <div class="card-sub">Scheduled jobs targeting this agent.</div>
+      <div class="card-title">Other Cron Jobs</div>
+      <div class="card-sub">Other scheduled jobs targeting this agent.</div>
       ${
         jobs.length === 0
           ? html`

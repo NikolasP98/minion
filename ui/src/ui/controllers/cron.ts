@@ -206,6 +206,114 @@ export async function runCronJob(state: CronState, job: CronJob) {
   }
 }
 
+// ── Always-On helpers ─────────────────────────────────────────────────────────
+
+/** Prefix used to identify always-on heartbeat cron jobs. */
+export const ALWAYS_ON_JOB_NAME_PREFIX = "always-on:";
+
+/** Default heartbeat message sent to the agent on each always-on wake. */
+const ALWAYS_ON_HEARTBEAT_MSG =
+  "Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. " +
+  "Do not infer or repeat old tasks from prior chats. " +
+  "If nothing needs attention, reply HEARTBEAT_OK.";
+
+/** Preset schedule options for the Always-On picker. */
+export type AlwaysOnPreset = "5m" | "15m" | "30m" | "1h" | "6h" | "nightly" | "custom";
+
+export type AlwaysOnScheduleState = {
+  preset: AlwaysOnPreset;
+  customCronExpr: string;
+  customCronTz: string;
+};
+
+export function defaultAlwaysOnSchedule(): AlwaysOnScheduleState {
+  return { preset: "30m", customCronExpr: "", customCronTz: "" };
+}
+
+/** Build the Qdrant schedule from the UI state. */
+export function buildAlwaysOnSchedule(s: AlwaysOnScheduleState): import("../types.js").CronSchedule {
+  switch (s.preset) {
+    case "5m":
+      return { kind: "every", everyMs: 5 * 60_000 };
+    case "15m":
+      return { kind: "every", everyMs: 15 * 60_000 };
+    case "30m":
+      return { kind: "every", everyMs: 30 * 60_000 };
+    case "1h":
+      return { kind: "every", everyMs: 60 * 60_000 };
+    case "6h":
+      return { kind: "every", everyMs: 6 * 60 * 60_000 };
+    case "nightly":
+      return { kind: "cron", expr: "0 2 * * *" };
+    case "custom": {
+      const expr = s.customCronExpr.trim();
+      if (!expr) {
+        throw new Error("Custom cron expression is required.");
+      }
+      return { kind: "cron", expr, tz: s.customCronTz.trim() || undefined };
+    }
+  }
+}
+
+/** Find the existing always-on cron job for an agent, if any. */
+export function findAlwaysOnJob(jobs: CronJob[], agentId: string): CronJob | null {
+  return (
+    jobs.find(
+      (j) => j.name.startsWith(ALWAYS_ON_JOB_NAME_PREFIX) && j.agentId === agentId,
+    ) ?? null
+  );
+}
+
+/**
+ * Create or update the always-on heartbeat cron job for an agent.
+ * Removes the existing job and re-creates when schedule changes.
+ */
+export async function saveAlwaysOnJob(
+  state: CronState,
+  agentId: string,
+  schedule: AlwaysOnScheduleState,
+  enabled: boolean,
+) {
+  if (!state.client || !state.connected || state.cronBusy) {
+    return;
+  }
+  state.cronBusy = true;
+  state.cronError = null;
+  try {
+    const existing = findAlwaysOnJob(state.cronJobs, agentId);
+    if (!enabled) {
+      if (existing) {
+        await state.client.request("cron.remove", { id: existing.id });
+      }
+    } else {
+      const cronSchedule = buildAlwaysOnSchedule(schedule);
+      if (existing) {
+        await state.client.request("cron.update", {
+          id: existing.id,
+          patch: { enabled: true, schedule: cronSchedule },
+        });
+      } else {
+        await state.client.request("cron.add", {
+          name: `${ALWAYS_ON_JOB_NAME_PREFIX}${agentId}`,
+          description: "Always-On heartbeat schedule",
+          agentId,
+          enabled: true,
+          schedule: cronSchedule,
+          sessionTarget: "main",
+          wakeMode: "next-heartbeat",
+          payload: { kind: "agentTurn", message: ALWAYS_ON_HEARTBEAT_MSG },
+        });
+      }
+    }
+    await loadCronJobs(state);
+    await loadCronStatus(state);
+  } catch (err) {
+    state.cronError = String(err);
+  } finally {
+    state.cronBusy = false;
+  }
+}
+
 export async function removeCronJob(state: CronState, job: CronJob) {
   if (!state.client || !state.connected || state.cronBusy) {
     return;

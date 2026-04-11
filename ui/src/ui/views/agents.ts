@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import type { AlwaysOnScheduleState } from "../controllers/cron.js";
 import type {
   AgentIdentityResult,
   AgentsFilesListResult,
@@ -45,9 +46,11 @@ export type AgentsProps = {
   channelsSnapshot: ChannelsStatusSnapshot | null;
   channelsLastSuccess: number | null;
   cronLoading: boolean;
+  cronBusy: boolean;
   cronStatus: CronStatus | null;
   cronJobs: CronJob[];
   cronError: string | null;
+  alwaysOnSchedule: AlwaysOnScheduleState;
   agentFilesLoading: boolean;
   agentFilesError: string | null;
   agentFilesList: AgentsFilesListResult | null;
@@ -85,6 +88,8 @@ export type AgentsProps = {
   onModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
   onChannelsRefresh: () => void;
   onCronRefresh: () => void;
+  onAlwaysOnScheduleChange: (patch: Partial<AlwaysOnScheduleState>) => void;
+  onAlwaysOnSave: (agentId: string, schedule: AlwaysOnScheduleState, enabled: boolean) => void;
   onSkillsFilterChange: (next: string) => void;
   onSkillsRefresh: () => void;
   onAgentSkillToggle: (agentId: string, skillName: string, enabled: boolean) => void;
@@ -272,8 +277,13 @@ export function renderAgents(props: AgentsProps) {
                         jobs: props.cronJobs,
                         status: props.cronStatus,
                         loading: props.cronLoading,
+                        busy: props.cronBusy,
                         error: props.cronError,
+                        alwaysOnSchedule: props.alwaysOnSchedule,
                         onRefresh: props.onCronRefresh,
+                        onAlwaysOnScheduleChange: props.onAlwaysOnScheduleChange,
+                        onAlwaysOnSave: (schedule, enabled) =>
+                          props.onAlwaysOnSave(selectedAgent.id, schedule, enabled),
                       })
                     : nothing
                 }

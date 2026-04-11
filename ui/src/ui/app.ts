@@ -49,6 +49,10 @@ import {
   removeQueuedMessage as removeQueuedMessageInternal,
 } from "./app-chat.ts";
 import { DEFAULT_CRON_FORM, DEFAULT_LOG_LEVEL_FILTERS } from "./app-defaults.ts";
+import {
+  defaultAlwaysOnSchedule,
+  type AlwaysOnScheduleState,
+} from "./controllers/cron.js";
 import { connectGateway as connectGatewayInternal } from "./app-gateway.ts";
 import {
   handleConnected,
@@ -299,6 +303,7 @@ export class OpenClawApp extends LitElement {
   @state() cronRunsJobId: string | null = null;
   @state() cronRuns: CronRunLogEntry[] = [];
   @state() cronBusy = false;
+  @state() alwaysOnSchedule: AlwaysOnScheduleState = defaultAlwaysOnSchedule();
 
   @state() skillsLoading = false;
   @state() skillsReport: SkillStatusReport | null = null;
