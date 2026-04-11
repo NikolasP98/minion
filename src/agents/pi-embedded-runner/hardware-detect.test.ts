@@ -18,7 +18,9 @@ vi.mock("node:os", () => ({
 vi.mock("../../providers/registry.js", () => ({
   findByName: vi.fn((name: string) => {
     const localProviders = new Set(["ollama", "lmstudio", "vllm"]);
-    return localProviders.has(name) ? { isLocal: true } : { isLocal: false };
+    // Mirror the real registry: return undefined for unknown providers, not { isLocal: false }
+    if (!localProviders.has(name)) return undefined;
+    return { isLocal: true };
   }),
 }));
 
