@@ -53,11 +53,27 @@ import { runEmbeddedAttempt } from "./run/attempt.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import { buildEmbeddedRunPayloads } from "./run/payloads.js";
 import {
+  isSemanticCacheEnabled,
+  resolveDefaultSemanticCache,
+  type QdrantSemanticCache,
+} from "./semantic-cache.js";
+import {
   truncateOversizedToolResultsInSession,
   sessionLikelyHasOversizedToolResults,
 } from "./tool-result-truncation.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { describeUnknownError } from "./utils.js";
+
+// ── Semantic cache singleton ───────────────────────────────────────────────────
+// Lazily initialised on first use; null when the cache is not configured.
+let _semanticCache: QdrantSemanticCache | null | undefined;
+
+function getSemanticCache(): QdrantSemanticCache | null {
+  if (_semanticCache === undefined) {
+    _semanticCache = resolveDefaultSemanticCache();
+  }
+  return _semanticCache;
+}
 
 type ApiKeyInfo = ResolvedProviderAuth;
 
@@ -469,6 +485,29 @@ export async function runEmbeddedPiAgent(
           throwAuthProfileFailover({ allInCooldown: false, error: err });
         }
       }
+
+      // ── Semantic cache lookup ────────────────────────────────────────────────
+      const agentSemanticCacheEnabled =
+        params.config?.agents?.defaults?.semanticCacheEnabled ?? false;
+      if (isSemanticCacheEnabled() && agentSemanticCacheEnabled) {
+        const semanticCache = getSemanticCache();
+        if (semanticCache) {
+          const cachedResponse = await semanticCache.get(params.prompt);
+          if (cachedResponse !== null) {
+            log.info(
+              `[semantic-cache] returning cached response for run=${params.runId} session=${params.sessionId}`,
+            );
+            return {
+              payloads: [{ text: cachedResponse }],
+              meta: {
+                durationMs: Date.now() - started,
+                agentMeta: { sessionId: params.sessionId, provider, model: model.id },
+              },
+            };
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       const MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
       let overflowCompactionAttempts = 0;
@@ -1050,6 +1089,23 @@ export async function runEmbeddedPiAgent(
               agentDir: params.agentDir,
             });
           }
+          // ── Store successful response in semantic cache ──────────────────────
+          if (
+            !aborted &&
+            isSemanticCacheEnabled() &&
+            (params.config?.agents?.defaults?.semanticCacheEnabled ?? false)
+          ) {
+            const semanticCache = getSemanticCache();
+            if (semanticCache) {
+              const textPayload = payloads.find((p) => p.text && !p.isError)?.text;
+              if (textPayload) {
+                // Fire-and-forget: cache store should not delay the response
+                void semanticCache.set(params.prompt, textPayload);
+              }
+            }
+          }
+          // ────────────────────────────────────────────────────────────────────
+
           return {
             payloads: payloads.length ? payloads : undefined,
             meta: {

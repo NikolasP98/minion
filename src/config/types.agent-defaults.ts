@@ -292,6 +292,12 @@ export type AgentDefaultsConfig = {
     /** Auto-prune sandbox containers. */
     prune?: SandboxPruneSettings;
   };
+  /**
+   * Enable semantic response caching via Qdrant for this agent.
+   * Requires SEMANTIC_CACHE_ENABLED=true and QDRANT_URL to be set.
+   * Default: false.
+   */
+  semanticCacheEnabled?: boolean;
 };
 
 export type AgentCompactionMode = "default" | "safeguard";
