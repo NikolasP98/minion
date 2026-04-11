@@ -15,6 +15,13 @@ vi.mock("node:os", () => ({
   totalmem: vi.fn(() => 16 * 1_073_741_824), // default: 16 GB
 }));
 
+vi.mock("../../providers/registry.js", () => ({
+  findByName: vi.fn((name: string) => {
+    const localProviders = new Set(["ollama", "lmstudio", "vllm"]);
+    return localProviders.has(name) ? { isLocal: true } : { isLocal: false };
+  }),
+}));
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function setEnv(key: string, value: string | undefined) {
@@ -154,5 +161,11 @@ describe("resolvePrivacyModeOverride", () => {
     setEnv("MINION_PRIVACY_MODE", "true");
     mockRamGb(32);
     expect(resolvePrivacyModeOverride("lmstudio", "phi-4")).toBeNull();
+  });
+
+  it("returns null when already on vllm (already local)", () => {
+    setEnv("MINION_PRIVACY_MODE", "true");
+    mockRamGb(32);
+    expect(resolvePrivacyModeOverride("vllm", "llama3:8b")).toBeNull();
   });
 });

@@ -11,6 +11,7 @@
 
 import { totalmem } from "node:os";
 
+import { findByName } from "../../providers/registry.js";
 import { log } from "./logger.js";
 
 /** Minimum RAM in GB required to run a local 14B model (Phi-4, Llama-3 8B, etc.). */
@@ -69,8 +70,7 @@ export function resolvePrivacyModeOverride(
   }
 
   // Already routed to a local provider — no override needed.
-  const local = currentProvider === PRIVACY_MODE_PROVIDER || currentProvider === "lmstudio" || currentProvider === "vllm";
-  if (local) {
+  if (findByName(currentProvider)?.isLocal) {
     return null;
   }
 
