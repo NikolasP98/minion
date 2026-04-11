@@ -100,6 +100,8 @@
     "release:check": "node --import tsx scripts/release-check.ts",
     "setup:vps": "bash setup/setup.sh",
     "setup:vps:dry-run": "bash setup/setup.sh --dry-run",
+    "site:build": "pnpm --filter minion-site build",
+    "site:dev": "pnpm --filter minion-site dev",
     "start": "node scripts/run-node.mjs",
     "test": "node scripts/test-parallel.mjs",
     "test:all": "pnpm lint && pnpm build && pnpm test && pnpm test:e2e && pnpm test:live && pnpm test:docker:all",
