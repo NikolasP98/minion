@@ -14,7 +14,7 @@ async function withTempConfig(
 ): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-env-io-"));
   const configPath = path.join(dir, "openclaw.json");
-  await fs.writeFile(configPath, configContent);
+  await fs.writeFile(configPath, configContent, "utf-8");
   try {
     await run(configPath);
   } finally {

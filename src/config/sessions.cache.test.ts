@@ -128,7 +128,7 @@ describe("Session Store Cache", () => {
     const modifiedStore: Record<string, SessionEntry> = {
       "session:99": { sessionId: "id-99", updatedAt: Date.now() },
     };
-    fs.writeFileSync(storePath, JSON.stringify(modifiedStore, null, 2));
+    fs.writeFileSync(storePath, JSON.stringify(modifiedStore, null, 2), "utf-8");
     const bump = new Date(Date.now() + 2000);
     fs.utimesSync(storePath, bump, bump);
 
@@ -194,7 +194,7 @@ describe("Session Store Cache", () => {
         displayName: "Test Session 2",
       },
     };
-    fs.writeFileSync(storePath, JSON.stringify(modifiedStore, null, 2));
+    fs.writeFileSync(storePath, JSON.stringify(modifiedStore, null, 2), "utf-8");
 
     // Second load - should read from disk (cache disabled)
     const loaded2 = loadSessionStore(storePath);
@@ -211,7 +211,7 @@ describe("Session Store Cache", () => {
 
   it("should handle invalid JSON gracefully", async () => {
     // Write invalid JSON
-    fs.writeFileSync(storePath, "not valid json {");
+    fs.writeFileSync(storePath, "not valid json {", "utf-8");
 
     // Should return empty store
     const loaded = loadSessionStore(storePath);

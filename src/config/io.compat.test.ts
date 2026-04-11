@@ -22,7 +22,7 @@ async function writeConfig(
   const dir = path.join(home, dirname);
   await fs.mkdir(dir, { recursive: true });
   const configPath = path.join(dir, filename);
-  await fs.writeFile(configPath, JSON.stringify({ gateway: { port } }, null, 2));
+  await fs.writeFile(configPath, JSON.stringify({ gateway: { port } }, null, 2), "utf-8");
   return configPath;
 }
 
