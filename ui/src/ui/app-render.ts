@@ -27,6 +27,7 @@ import {
   addCronJob,
   normalizeCronFormState,
 } from "./controllers/cron.ts";
+import { loadHookEvents, testHook } from "./controllers/hooks.ts";
 import { loadDebug, callDebugMethod } from "./controllers/debug.ts";
 import {
   approveDevicePairing,
@@ -55,6 +56,7 @@ import {
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
 import { renderAgents } from "./views/agents.ts";
+import { renderHooks } from "./views/hooks.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
 import { renderConfig } from "./views/config.ts";
@@ -266,6 +268,46 @@ export function renderApp(state: AppViewState) {
                 onNostrProfileSave: () => state.handleNostrProfileSave(),
                 onNostrProfileImport: () => state.handleNostrProfileImport(),
                 onNostrProfileToggleAdvanced: () => state.handleNostrProfileToggleAdvanced(),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "hooks"
+            ? renderHooks({
+                connected: state.connected,
+                loading: state.hooksLoading,
+                events: state.hooksEvents,
+                error: state.hooksError,
+                testBusy: state.hooksTestBusy,
+                testResult: state.hooksTestResult,
+                testError: state.hooksTestError,
+                wizardStep: state.hooksWizardStep,
+                gatewayHttpUrl: state.settings.gatewayUrl
+                  .replace(/^wss?:\/\//, (m) => (m.startsWith("wss") ? "https://" : "http://"))
+                  .replace(/\/+$/, ""),
+                hooksToken: (() => {
+                  const cfg = state.configSnapshot?.config as Record<string, unknown> | null;
+                  const hooks = cfg?.hooks as Record<string, unknown> | null;
+                  const token = hooks?.token;
+                  return typeof token === "string" ? token : null;
+                })(),
+                githubSecret: (() => {
+                  const cfg = state.configSnapshot?.config as Record<string, unknown> | null;
+                  const hooks = cfg?.hooks as Record<string, unknown> | null;
+                  const github = hooks?.github as Record<string, unknown> | null;
+                  const secret = github?.secret;
+                  return typeof secret === "string" ? secret : null;
+                })(),
+                hooksEnabled: (() => {
+                  const cfg = state.configSnapshot?.config as Record<string, unknown> | null;
+                  const hooks = cfg?.hooks as Record<string, unknown> | null;
+                  const enabled = hooks?.enabled;
+                  return typeof enabled === "boolean" ? enabled : null;
+                })(),
+                onRefresh: () => state.handleHooksLoad(),
+                onTest: () => state.handleHooksTest(),
+                onWizardStep: (step) => state.handleHooksWizardStep(step),
               })
             : nothing
         }

@@ -79,6 +79,8 @@ import {
 } from "./app-tool-stream.ts";
 import { normalizeAssistantIdentity } from "./assistant-identity.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
+import { loadHookEvents as loadHookEventsInternal, testHook as testHookInternal } from "./controllers/hooks.ts";
+import type { HooksWizardStep } from "./ui-types.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
 
@@ -290,6 +292,14 @@ export class OpenClawApp extends LitElement {
 
   // Non-reactive (don’t trigger renders just for timer bookkeeping).
   usageQueryDebounceTimer: number | null = null;
+
+  @state() hooksLoading = false;
+  @state() hooksEvents: import("./types.js").HookEvent[] = [];
+  @state() hooksError: string | null = null;
+  @state() hooksTestBusy = false;
+  @state() hooksTestResult: string | null = null;
+  @state() hooksTestError: string | null = null;
+  @state() hooksWizardStep: import("./ui-types.js").HooksWizardStep = 1;
 
   @state() cronLoading = false;
   @state() cronJobs: CronJob[] = [];
@@ -573,6 +583,18 @@ export class OpenClawApp extends LitElement {
     const newRatio = Math.max(0.4, Math.min(0.7, ratio));
     this.splitRatio = newRatio;
     this.applySettings({ ...this.settings, splitRatio: newRatio });
+  }
+
+  async handleHooksLoad() {
+    await loadHookEventsInternal(this as unknown as Parameters<typeof loadHookEventsInternal>[0]);
+  }
+
+  async handleHooksTest() {
+    await testHookInternal(this as unknown as Parameters<typeof testHookInternal>[0]);
+  }
+
+  handleHooksWizardStep(step: HooksWizardStep) {
+    this.hooksWizardStep = step;
   }
 
   render() {
