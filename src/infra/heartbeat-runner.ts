@@ -65,6 +65,12 @@ import {
   resolveHeartbeatDeliveryTarget,
   resolveHeartbeatSenderContext,
 } from "./outbound/targets.js";
+import {
+  appendSessionLogEntry,
+  injectSessionContext,
+  isSessionLogEnabled,
+  readSessionLogEntries,
+} from "./session-log.js";
 import { peekSystemEventEntries } from "./system-events.js";
 
 export type HeartbeatDeps = OutboundSendDeps &
@@ -672,8 +678,17 @@ export async function runHeartbeatOnce(opts: {
     : hasCronEvents
       ? buildCronEventPrompt(cronEvents)
       : resolveHeartbeatPrompt(cfg, heartbeat);
+  // Session log: load prior heartbeat context and inject into prompt (gated by feature flag).
+  const sessionLogEnabled = isSessionLogEnabled();
+  const agentWorkspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  const priorSessionEntries = sessionLogEnabled
+    ? await readSessionLogEntries(agentWorkspaceDir, sessionKey)
+    : [];
+  const promptBody = appendCronStyleCurrentTimeLine(prompt, cfg, startedAt);
+  const promptWithContext = injectSessionContext(promptBody, priorSessionEntries);
+
   const ctx = {
-    Body: appendCronStyleCurrentTimeLine(prompt, cfg, startedAt),
+    Body: promptWithContext,
     From: sender,
     To: sender,
     Provider: hasExecCompletion ? "exec-event" : hasCronEvents ? "cron-event" : "heartbeat",
@@ -736,6 +751,18 @@ export async function runHeartbeatOnce(opts: {
       ? { isHeartbeat: true, heartbeatModelOverride, suppressToolErrorWarnings }
       : { isHeartbeat: true, suppressToolErrorWarnings };
     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
+
+    // Session log: append this run's summary so the next heartbeat can resume context.
+    if (sessionLogEnabled) {
+      const replyPayloadForLog = resolveHeartbeatReplyPayload(replyResult);
+      void appendSessionLogEntry(agentWorkspaceDir, sessionKey, {
+        ts: startedAt,
+        prompt: promptBody,
+        reply: replyPayloadForLog?.text?.trim() ?? "",
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
     const includeReasoning = heartbeat?.includeReasoning === true;
     const reasoningPayloads = includeReasoning
