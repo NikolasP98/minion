@@ -14,6 +14,8 @@ export type ChatQueueItem = {
 
 export const CRON_CHANNEL_LAST = "last";
 
+export type HooksWizardStep = 1 | 2 | 3 | 4;
+
 export type CronFormState = {
   name: string;
   description: string;

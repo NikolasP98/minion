@@ -550,6 +550,19 @@ export type SkillStatusReport = {
   skills: SkillStatusEntry[];
 };
 
+export type HookEvent = {
+  id: string;
+  ts: number;
+  eventType: string;
+  repo?: string | null;
+  status: "dispatched" | "skipped" | "error";
+  detail?: string | null;
+};
+
+export type HookEventsResult = {
+  events: HookEvent[];
+};
+
 export type StatusSummary = Record<string, unknown>;
 
 export type HealthSnapshot = Record<string, unknown>;

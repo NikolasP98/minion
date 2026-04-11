@@ -13,6 +13,7 @@ import { loadAgents } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
 import { loadCronJobs, loadCronStatus } from "./controllers/cron.ts";
+import { loadHookEvents } from "./controllers/hooks.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadExecApprovals } from "./controllers/exec-approvals.ts";
@@ -184,6 +185,12 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "channels") {
     await loadChannelsTab(host);
+  }
+  if (host.tab === "hooks") {
+    await Promise.all([
+      loadConfig(host as unknown as OpenClawApp),
+      loadHookEvents(host as unknown as OpenClawApp),
+    ]);
   }
   if (host.tab === "instances") {
     await loadPresence(host as unknown as OpenClawApp);

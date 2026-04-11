@@ -20,6 +20,7 @@ import type {
   CronRunLogEntry,
   CronStatus,
   HealthSnapshot,
+  HookEvent,
   LogEntry,
   LogLevel,
   NostrProfile,
@@ -31,7 +32,7 @@ import type {
   SkillStatusReport,
   StatusSummary,
 } from "./types.ts";
-import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
+import type { ChatAttachment, ChatQueueItem, CronFormState, HooksWizardStep } from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import type { SessionLogEntry } from "./views/usage.ts";
 
@@ -192,6 +193,13 @@ export type AppViewState = {
   cronRunsJobId: string | null;
   cronRuns: CronRunLogEntry[];
   cronBusy: boolean;
+  hooksLoading: boolean;
+  hooksEvents: HookEvent[];
+  hooksError: string | null;
+  hooksTestBusy: boolean;
+  hooksTestResult: string | null;
+  hooksTestError: string | null;
+  hooksWizardStep: HooksWizardStep;
   skillsLoading: boolean;
   skillsReport: SkillStatusReport | null;
   skillsError: string | null;
@@ -255,6 +263,9 @@ export type AppViewState = {
   handleToggleSkillEnabled: (key: string, enabled: boolean) => Promise<void>;
   handleUpdateSkillEdit: (key: string, value: string) => void;
   handleSaveSkillApiKey: (key: string, apiKey: string) => Promise<void>;
+  handleHooksLoad: () => Promise<void>;
+  handleHooksTest: () => Promise<void>;
+  handleHooksWizardStep: (step: HooksWizardStep) => void;
   handleCronToggle: (jobId: string, enabled: boolean) => Promise<void>;
   handleCronRun: (jobId: string) => Promise<void>;
   handleCronRemove: (jobId: string) => Promise<void>;
