@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { agentCommand } from "../../cli/commands/agent.js";
+import { getRedisClient, mkKey, rDeserialise, rSerialise } from "../../infra/redis.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
 import {
@@ -70,8 +71,10 @@ const meshRuns = new Map<string, MeshRunRecord>();
 const MAX_KEEP_RUNS = 200;
 const AUTO_PLAN_TIMEOUT_MS = 90_000;
 const PLANNER_MAIN_KEY = "mesh-planner";
+const MESH_RUN_TTL_SECS = 86_400; // 24 h
 
 function trimMap() {
+  if (getRedisClient()) return; // Redis TTL handles eviction
   if (meshRuns.size <= MAX_KEEP_RUNS) {
     return;
   }
@@ -80,6 +83,25 @@ function trimMap() {
   for (const stale of sorted.slice(0, overflow)) {
     meshRuns.delete(stale.runId);
   }
+}
+
+async function meshSet(record: MeshRunRecord): Promise<void> {
+  meshRuns.set(record.runId, record);
+  const rc = getRedisClient();
+  if (rc) {
+    await rc.set(mkKey("mesh", "run", record.runId), rSerialise(record), "EX", MESH_RUN_TTL_SECS);
+  }
+}
+
+async function meshGet(runId: string): Promise<MeshRunRecord | undefined> {
+  const local = meshRuns.get(runId);
+  if (local) return local;
+  const rc = getRedisClient();
+  if (!rc) return undefined;
+  const raw = await rc.get(mkKey("mesh", "run", runId));
+  const record = rDeserialise<MeshRunRecord>(raw);
+  if (record) meshRuns.set(runId, record); // warm local cache
+  return record ?? undefined;
 }
 
 function stringifyUnknown(value: unknown): string {
@@ -335,6 +357,7 @@ async function executeStep(params: {
       stepId: step.id,
       data: { error: step.error },
     });
+    await meshSet(run);
     return;
   }
 
@@ -354,6 +377,7 @@ async function executeStep(params: {
       stepId: step.id,
       data: { error: step.error },
     });
+    await meshSet(run);
     return;
   }
 
@@ -377,6 +401,7 @@ async function executeStep(params: {
     step.status = "succeeded";
     step.endedAt = Date.now();
     run.history.push({ ts: Date.now(), type: "step.ok", stepId: step.id, data: { runId } });
+    await meshSet(run);
     return;
   }
 
@@ -392,6 +417,7 @@ async function executeStep(params: {
     stepId: step.id,
     data: { runId, status: waitStatus, error: step.error },
   });
+  await meshSet(run);
 }
 
 function createRunRecord(params: {
@@ -506,6 +532,7 @@ async function runWorkflow(run: MeshRunRecord, opts: GatewayRequestHandlerOption
     type: "run.end",
     data: { status: run.status },
   });
+  await meshSet(run);
 }
 
 function resolveStepIdsForRetry(run: MeshRunRecord, requested?: string[]): string[] {
@@ -825,13 +852,13 @@ export const meshHandlers: GatewayRequestHandlers = {
       defaultStepTimeoutMs,
       lane: typeof p.lane === "string" ? p.lane : undefined,
     });
-    meshRuns.set(runId, record);
+    await meshSet(record);
     trimMap();
 
     await runWorkflow(record, opts);
     respond(true, summarizeRun(record), undefined);
   },
-  "mesh.status": ({ params, respond }) => {
+  "mesh.status": async ({ params, respond }) => {
     if (!validateMeshStatusParams(params)) {
       respond(
         false,
@@ -843,7 +870,7 @@ export const meshHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const run = meshRuns.get(params.runId.trim());
+    const run = await meshGet(params.runId.trim());
     if (!run) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "mesh run not found"));
       return;
@@ -864,7 +891,7 @@ export const meshHandlers: GatewayRequestHandlers = {
       return;
     }
     const runId = params.runId.trim();
-    const run = meshRuns.get(runId);
+    const run = await meshGet(runId);
     if (!run) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "mesh run not found"));
       return;
@@ -905,11 +932,17 @@ export const meshHandlers: GatewayRequestHandlers = {
       type: "run.retry",
       data: { stepIds },
     });
+    await meshSet(run);
     await runWorkflow(run, opts);
     respond(true, summarizeRun(run), undefined);
   },
 };
 
-export function __resetMeshRunsForTest() {
+export async function __resetMeshRunsForTest() {
+  const rc = getRedisClient();
+  if (rc) {
+    const keys = await rc.keys(mkKey("mesh", "run", "*"));
+    if (keys.length > 0) await rc.del(...keys);
+  }
   meshRuns.clear();
 }
