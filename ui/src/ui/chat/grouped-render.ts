@@ -4,6 +4,7 @@ import type { AssistantIdentity } from "../assistant-identity.ts";
 import { toSanitizedMarkdownHtml } from "../markdown.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { MessageGroup } from "../types/chat-types.ts";
+import { renderDisclosureForRole } from "./ai-disclosure-badge.ts";
 import { renderCopyAsMarkdownButton } from "./copy-as-markdown.ts";
 import {
   extractTextCached,
@@ -98,6 +99,7 @@ export function renderStreamingGroup(
         <div class="chat-group-footer">
           <span class="chat-sender-name">${name}</span>
           <span class="chat-group-timestamp">${timestamp}</span>
+          ${renderDisclosureForRole("assistant")}
         </div>
       </div>
     </div>
@@ -148,6 +150,7 @@ export function renderMessageGroup(
         <div class="chat-group-footer">
           <span class="chat-sender-name">${who}</span>
           <span class="chat-group-timestamp">${timestamp}</span>
+          ${renderDisclosureForRole(normalizedRole)}
         </div>
       </div>
     </div>

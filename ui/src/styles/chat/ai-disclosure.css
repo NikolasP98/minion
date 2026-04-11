@@ -1,0 +1,58 @@
+/* =============================================
+   AI DISCLOSURE BADGE — EU AI Act Article 50
+   ============================================= */
+
+.ai-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.8;
+  user-select: none;
+  margin-left: auto;
+}
+
+.ai-disclosure__text {
+  letter-spacing: 0.02em;
+}
+
+.ai-disclosure__text[hidden] {
+  display: none;
+}
+
+.ai-disclosure__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm, 4px);
+  opacity: 0.7;
+  transition: opacity 120ms ease-out, background 120ms ease-out;
+}
+
+.ai-disclosure__toggle:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
+.ai-disclosure__toggle:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Touch devices: always show toggle */
+@media (hover: none) {
+  .ai-disclosure__toggle {
+    opacity: 1;
+  }
+}
