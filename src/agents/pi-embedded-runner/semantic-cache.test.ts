@@ -90,9 +90,9 @@ describe("isSemanticCacheEnabled", () => {
 // ── resolveSemanticCacheThreshold ─────────────────────────────────────────────
 
 describe("resolveSemanticCacheThreshold", () => {
-  it("returns 0.85 by default", () => {
+  it("returns 0.92 by default", () => {
     delete process.env.CACHE_SIMILARITY_THRESHOLD;
-    expect(resolveSemanticCacheThreshold()).toBe(0.85);
+    expect(resolveSemanticCacheThreshold()).toBe(0.92);
   });
 
   it("parses custom float", () => {
@@ -103,13 +103,13 @@ describe("resolveSemanticCacheThreshold", () => {
 
   it("ignores invalid value and falls back to default", () => {
     process.env.CACHE_SIMILARITY_THRESHOLD = "banana";
-    expect(resolveSemanticCacheThreshold()).toBe(0.85);
+    expect(resolveSemanticCacheThreshold()).toBe(0.92);
     delete process.env.CACHE_SIMILARITY_THRESHOLD;
   });
 
   it("ignores out-of-range values", () => {
     process.env.CACHE_SIMILARITY_THRESHOLD = "1.5";
-    expect(resolveSemanticCacheThreshold()).toBe(0.85);
+    expect(resolveSemanticCacheThreshold()).toBe(0.92);
     delete process.env.CACHE_SIMILARITY_THRESHOLD;
   });
 });

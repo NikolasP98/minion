@@ -6,7 +6,7 @@
  *
  * Feature flags:
  *   SEMANTIC_CACHE_ENABLED=true|1          — global on/off
- *   CACHE_SIMILARITY_THRESHOLD=0.85        — similarity cutoff (0–1, default 0.85)
+ *   CACHE_SIMILARITY_THRESHOLD=0.92        — similarity cutoff (0–1, default 0.92)
  *   QDRANT_URL=http://localhost:6333       — Qdrant server URL
  *   QDRANT_API_KEY=<key>                   — optional Qdrant auth key
  */
@@ -18,7 +18,7 @@ const log = baseLog;
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const DEFAULT_COLLECTION = "llm_cache";
-const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.92;
 const DEFAULT_MAX_ENTRIES = 10_000;
 const DEFAULT_TTL_SECONDS = 24 * 60 * 60; // 24h
 const EVICT_BATCH_RATIO = 0.1; // evict 10% when at capacity
@@ -48,7 +48,7 @@ export interface QdrantSemanticCacheOptions {
   vectorSize: number;
   /** Qdrant collection name. Default: "llm_cache". */
   collectionName?: string;
-  /** Cosine similarity threshold for a cache hit. Default: 0.85. */
+  /** Cosine similarity threshold for a cache hit. Default: 0.92. */
   similarityThreshold?: number;
   /** Maximum number of cache entries (LRU eviction). Default: 10_000. */
   maxEntries?: number;
