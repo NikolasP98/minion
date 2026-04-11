@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  vit-inspect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vit-inspect
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    volumes:
+      - model-weights:/app/checkpoints
+    environment:
+      - PORT=8100
+      - USE_ONNX=true
+      - MODEL_PATH=/app/checkpoints/best_model.pt
+      - ONNX_PATH=/app/checkpoints/model_int8.onnx
+      - CONFIDENCE_THRESHOLD=0.5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+volumes:
+  model-weights:
+    driver: local

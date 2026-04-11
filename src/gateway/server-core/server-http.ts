@@ -51,6 +51,7 @@ import {
 } from "../hooks.js";
 import { sendGatewayAuthFailure } from "../http-common.js";
 import { getBearerToken, getHeader } from "../http-utils.js";
+import { handleInspectApiRequest } from "../inspect-api.js";
 import { isPrivateOrLoopbackAddress, resolveGatewayClientIp } from "../net.js";
 import { handleOpenAiHttpRequest } from "../openai-http.js";
 import { handleOpenResponsesHttpRequest } from "../openresponses-http.js";
@@ -489,6 +490,15 @@ export function createGatewayHttpServer(opts: {
       }
       if (
         await handleToolsInvokeHttpRequest(req, res, {
+          auth: resolvedAuth,
+          trustedProxies,
+          rateLimiter,
+        })
+      ) {
+        return;
+      }
+      if (
+        await handleInspectApiRequest(req, res, {
           auth: resolvedAuth,
           trustedProxies,
           rateLimiter,
