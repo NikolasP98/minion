@@ -144,6 +144,86 @@ describe("classifyParams", () => {
     });
   });
 
+  describe("health_info", () => {
+    it("detects 'diagnosis'", () => {
+      expect(classifyParams({ diagnosis: "Type 2 Diabetes" })).toContain("health_info");
+    });
+
+    it("detects 'medical'", () => {
+      expect(classifyParams({ medical: "record" })).toContain("health_info");
+    });
+
+    it("detects 'prescription'", () => {
+      expect(classifyParams({ prescription: "Metformin 500mg" })).toContain("health_info");
+    });
+
+    it("detects 'patient_id'", () => {
+      expect(classifyParams({ patient_id: "P-12345" })).toContain("health_info");
+    });
+
+    it("detects 'mrn'", () => {
+      expect(classifyParams({ mrn: "MRN-98765" })).toContain("health_info");
+    });
+
+    it("detects 'icd_code'", () => {
+      expect(classifyParams({ icd_code: "E11.9" })).toContain("health_info");
+    });
+
+    it("detects 'insurance_id'", () => {
+      expect(classifyParams({ insurance_id: "INS-456" })).toContain("health_info");
+    });
+
+    it("detects 'lab_result'", () => {
+      expect(classifyParams({ lab_result: "A1C: 6.5%" })).toContain("health_info");
+    });
+
+    it("detects 'allergy'", () => {
+      expect(classifyParams({ allergy: "penicillin" })).toContain("health_info");
+    });
+  });
+
+  describe("financial_info", () => {
+    it("detects 'credit_card'", () => {
+      expect(classifyParams({ credit_card: "4111111111111111" })).toContain("financial_info");
+    });
+
+    it("detects 'ssn'", () => {
+      expect(classifyParams({ ssn: "123-45-6789" })).toContain("financial_info");
+    });
+
+    it("detects 'iban'", () => {
+      expect(classifyParams({ iban: "DE89370400440532013000" })).toContain("financial_info");
+    });
+
+    it("detects 'bank_account'", () => {
+      expect(classifyParams({ bank_account: "1234567890" })).toContain("financial_info");
+    });
+
+    it("detects 'cvv'", () => {
+      expect(classifyParams({ cvv: "123" })).toContain("financial_info");
+    });
+
+    it("detects 'routing_number'", () => {
+      expect(classifyParams({ routing_number: "021000021" })).toContain("financial_info");
+    });
+
+    it("detects 'transaction'", () => {
+      expect(classifyParams({ transaction: "TXN-789" })).toContain("financial_info");
+    });
+
+    it("detects 'payment'", () => {
+      expect(classifyParams({ payment: "pending" })).toContain("financial_info");
+    });
+
+    it("detects 'tax_id'", () => {
+      expect(classifyParams({ tax_id: "XX-1234567" })).toContain("financial_info");
+    });
+
+    it("detects 'account_number'", () => {
+      expect(classifyParams({ account_number: "9876543210" })).toContain("financial_info");
+    });
+  });
+
   describe("file_content", () => {
     it("detects 'file'", () => {
       expect(classifyParams({ file: "data" })).toContain("file_content");
@@ -197,6 +277,16 @@ describe("classifyParams", () => {
       expect(credIdx).toBeGreaterThanOrEqual(0);
       expect(contentIdx).toBeGreaterThanOrEqual(0);
       expect(credIdx).toBeLessThan(contentIdx);
+    });
+
+    it("returns health_info before financial_info in FIELD_RULES order", () => {
+      const params = { diagnosis: "flu", credit_card: "4111" };
+      const result = classifyParams(params);
+      const healthIdx = result.indexOf("health_info");
+      const finIdx = result.indexOf("financial_info");
+      expect(healthIdx).toBeGreaterThanOrEqual(0);
+      expect(finIdx).toBeGreaterThanOrEqual(0);
+      expect(healthIdx).toBeLessThan(finIdx);
     });
 
     it("does not return duplicates", () => {
