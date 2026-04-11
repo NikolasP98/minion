@@ -1,0 +1,46 @@
+# Llama 4 Maverick — Phase 2 air-gap stack (DISABLED — defined for future use)
+#
+# This stack runs Llama 4 Maverick 17B-128E locally via vLLM with a
+# Hugging Face model cache volume. Enable by setting LLAMA4_MAVERICK_ENABLED=true
+# and pointing LLAMA4_BASE_URL at this service.
+#
+# Prerequisites:
+#   - NVIDIA GPU with ≥ 80 GB VRAM (A100 or H100 recommended for FP8)
+#   - docker compose v2
+#   - HUGGING_FACE_HUB_TOKEN env var (for gated model access)
+#
+# Usage:
+#   docker compose -f docker/llama4-maverick/docker-compose.yml up -d
+#   LLAMA4_MAVERICK_ENABLED=true META_AI_API_KEY=unused MINION_LOCAL_MODEL=llama4-maverick
+
+version: "3.9"
+
+services:
+  llama4-maverick:
+    image: vllm/vllm-openai:latest
+    # Requires NVIDIA GPU runtime — disabled by default
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+    volumes:
+      - llama4-model-cache:/root/.cache/huggingface
+    command: >
+      --model meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8
+      --dtype fp8
+      --max-model-len 32768
+      --port 8080
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    profiles:
+      - llama4-maverick
+
+volumes:
+  llama4-model-cache:
+    driver: local

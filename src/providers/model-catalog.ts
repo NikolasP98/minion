@@ -69,6 +69,11 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "grok-2": 131_072,
   "grok-3": 131_072,
 
+  // Meta AI (Llama 4)
+  "llama4-maverick": 1_000_000,
+  "meta-llama/llama-4-maverick-17b-128e-instruct": 1_000_000,
+  "meta-llama/llama-4-maverick-17b-128e-instruct-fp8": 1_000_000,
+
   // Local models (common Ollama tags)
   "qwen3:1.7b": 4_096,
   "qwen3:8b": 32_768,

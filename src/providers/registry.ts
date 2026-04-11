@@ -158,6 +158,15 @@ const PROVIDERS: readonly ProviderSpec[] = [
     isLocal: false,
     capabilities: { nativeToolCalling: true, vision: true, streaming: true },
   },
+  {
+    name: "meta",
+    displayName: "Meta AI (Llama 4)",
+    keywords: ["llama4", "llama-4", "meta-llama/llama-4"],
+    envKey: "META_AI_API_KEY",
+    defaultApiBase: "https://api.llama.com/compat/v1",
+    isLocal: false,
+    capabilities: { nativeToolCalling: true, vision: true, streaming: true },
+  },
 ] as const;
 
 // ── Lookup Functions ─────────────────────────────────────────────────────────
