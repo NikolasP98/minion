@@ -46,6 +46,7 @@ import {
 } from "../pi-embedded-helpers.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../usage.js";
 import { compactEmbeddedPiSessionDirect } from "./compact.js";
+import { resolvePrivacyModeOverride } from "./hardware-detect.js";
 import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
 import { resolveModel } from "./model.js";
@@ -265,6 +266,13 @@ export async function runEmbeddedPiAgent(
       if (modelResolveOverride?.modelOverride) {
         modelId = modelResolveOverride.modelOverride;
         log.info(`[hooks] model overridden to ${modelId}`);
+      }
+
+      // Privacy mode: force routing to local provider when MINION_PRIVACY_MODE=true.
+      const privacyOverride = resolvePrivacyModeOverride(provider, modelId);
+      if (privacyOverride) {
+        provider = privacyOverride.provider;
+        modelId = privacyOverride.modelId;
       }
 
       const { model, error, authStorage, modelRegistry } = resolveModel(

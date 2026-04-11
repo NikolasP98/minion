@@ -79,6 +79,8 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "llama3:8b": 8_192,
   "llama3:70b": 8_192,
   "phi-4": 16_384,
+  "phi4": 16_384,
+  "phi4:14b": 16_384,
   "deepseek-r1:8b": 32_768,
   "deepseek-r1:14b": 32_768,
 };
