@@ -7,6 +7,7 @@ export type HookMappingResolved = {
   id: string;
   matchPath?: string;
   matchSource?: string;
+  matchHeader?: { name: string; value: string };
   action: "wake" | "agent";
   wakeMode?: "now" | "next-heartbeat";
   name?: string;
@@ -76,6 +77,38 @@ const hookPresetMappings: Record<string, HookMappingConfig[]> = {
         "New email from {{messages[0].from}}\nSubject: {{messages[0].subject}}\n{{messages[0].snippet}}\n{{messages[0].body}}",
     },
   ],
+  github: [
+    {
+      id: "github/push",
+      match: { header: { name: "x-github-event", value: "push" } },
+      action: "agent",
+      wakeMode: "now",
+      name: "GitHub Push",
+      sessionKey: "hook:github:push:{{repository.full_name}}:{{after}}",
+      messageTemplate:
+        "GitHub push event on {{repository.full_name}}\nBranch: {{ref}}\nPushed by: {{pusher.name}}\nCommits: {{commits.length}}\nHead commit: {{head_commit.message}}",
+    },
+    {
+      id: "github/pull_request",
+      match: { header: { name: "x-github-event", value: "pull_request" } },
+      action: "agent",
+      wakeMode: "now",
+      name: "GitHub Pull Request",
+      sessionKey: "hook:github:pr:{{repository.full_name}}:{{pull_request.number}}",
+      messageTemplate:
+        "GitHub pull_request event on {{repository.full_name}}\nAction: {{action}}\nPR #{{pull_request.number}}: {{pull_request.title}}\nBy: {{pull_request.user.login}}\nBranch: {{pull_request.head.ref}} → {{pull_request.base.ref}}",
+    },
+    {
+      id: "github/issues",
+      match: { header: { name: "x-github-event", value: "issues" } },
+      action: "agent",
+      wakeMode: "now",
+      name: "GitHub Issue",
+      sessionKey: "hook:github:issue:{{repository.full_name}}:{{issue.number}}",
+      messageTemplate:
+        "GitHub issues event on {{repository.full_name}}\nAction: {{action}}\nIssue #{{issue.number}}: {{issue.title}}\nBy: {{issue.user.login}}\n{{issue.body}}",
+    },
+  ],
 };
 
 const transformCache = new Map<string, HookTransformFn>();
@@ -108,6 +141,8 @@ export function resolveHookMappings(
 ): HookMappingResolved[] {
   const presets = hooks?.presets ?? [];
   const gmailAllowUnsafe = hooks?.gmail?.allowUnsafeExternalContent;
+  const githubAgentId = hooks?.github?.agentId?.trim() || undefined;
+  const githubEvents = hooks?.github?.events;
   const mappings: HookMappingConfig[] = [];
   if (hooks?.mappings) {
     mappings.push(...hooks.mappings);
@@ -124,6 +159,22 @@ export function resolveHookMappings(
           allowUnsafeExternalContent: gmailAllowUnsafe,
         })),
       );
+      continue;
+    }
+    if (preset === "github") {
+      for (const mapping of presetMappings) {
+        // Filter out events not in the allowed list (if a filter is configured).
+        if (githubEvents && githubEvents.length > 0) {
+          const eventName = mapping.match?.header?.value;
+          if (eventName && !(githubEvents as string[]).includes(eventName)) {
+            continue;
+          }
+        }
+        mappings.push({
+          ...mapping,
+          ...(githubAgentId ? { agentId: githubAgentId } : {}),
+        });
+      }
       continue;
     }
     mappings.push(...presetMappings);
@@ -189,6 +240,11 @@ function normalizeHookMapping(
   const id = mapping.id?.trim() || `mapping-${index + 1}`;
   const matchPath = normalizeMatchPath(mapping.match?.path);
   const matchSource = mapping.match?.source?.trim();
+  const rawHeader = mapping.match?.header;
+  const matchHeader =
+    rawHeader?.name?.trim() && rawHeader?.value?.trim()
+      ? { name: rawHeader.name.trim().toLowerCase(), value: rawHeader.value.trim() }
+      : undefined;
   const action = mapping.action ?? "agent";
   const wakeMode = mapping.wakeMode ?? "now";
   const transform = mapping.transform
@@ -202,6 +258,7 @@ function normalizeHookMapping(
     id,
     matchPath,
     matchSource,
+    matchHeader,
     action,
     wakeMode,
     name: mapping.name,
@@ -229,6 +286,12 @@ function mappingMatches(mapping: HookMappingResolved, ctx: HookMappingContext) {
   if (mapping.matchSource) {
     const source = typeof ctx.payload.source === "string" ? ctx.payload.source : undefined;
     if (!source || source !== mapping.matchSource) {
+      return false;
+    }
+  }
+  if (mapping.matchHeader) {
+    const headerVal = ctx.headers[mapping.matchHeader.name];
+    if (!headerVal || headerVal.toLowerCase() !== mapping.matchHeader.value.toLowerCase()) {
       return false;
     }
   }

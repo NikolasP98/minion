@@ -1,6 +1,8 @@
 export type HookMappingMatch = {
   path?: string;
   source?: string;
+  /** Match by a specific HTTP header value (case-insensitive header name, exact value match). */
+  header?: { name: string; value: string };
 };
 
 export type HookMappingTransform = {
@@ -140,6 +142,15 @@ export type HooksGogOAuthConfig = {
   googleClientCredentialsFile?: string;
 };
 
+export type HooksGitHubConfig = {
+  /** HMAC-SHA256 webhook secret for validating X-Hub-Signature-256 headers. */
+  secret?: string;
+  /** Event filter — only route events in this list. Omit to accept all. */
+  events?: Array<"push" | "pull_request" | "issues">;
+  /** Route all GitHub webhook events to this agent id instead of the default agent. */
+  agentId?: string;
+};
+
 export type HooksConfig = {
   enabled?: boolean;
   path?: string;
@@ -169,6 +180,8 @@ export type HooksConfig = {
   transformsDir?: string;
   mappings?: HookMappingConfig[];
   gmail?: HooksGmailConfig;
+  /** GitHub webhook integration config (HMAC secret, event filter, agent routing). */
+  github?: HooksGitHubConfig;
   /** Internal agent event hooks */
   internal?: InternalHooksConfig;
   /** Google OAuth non-blocking authentication */

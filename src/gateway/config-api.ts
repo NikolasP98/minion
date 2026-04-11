@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MinionConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
 import { createConfigIO } from "../config/io.js";
+import { getHookEvents } from "./hooks-event-log.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status;
@@ -42,6 +43,12 @@ export async function handleConfigApiRequest(
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     sendJson(res, 204, {});
+    return true;
+  }
+
+  // GET /api/config/hooks/events - Return recent webhook event log
+  if (req.method === "GET" && url.pathname === "/api/config/hooks/events") {
+    sendJson(res, 200, { ok: true, events: getHookEvents() });
     return true;
   }
 

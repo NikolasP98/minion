@@ -1,10 +1,15 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { listAgentIds, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { listChannelPlugins } from "../channels/plugins/index.js";
 import type { ChannelId } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
-import { readJsonBodyWithLimit, requestBodyErrorToText } from "../infra/http-body.js";
+import {
+  isRequestBodyLimitError,
+  readJsonBodyWithLimit,
+  readRequestBodyWithLimit,
+  requestBodyErrorToText,
+} from "../infra/http-body.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { normalizeMessageChannel } from "../shared/message-channel.js";
 import { type HookMappingResolved, resolveHookMappings } from "./hooks-mapping.js";
@@ -19,6 +24,7 @@ export type HooksConfigResolved = {
   mappings: HookMappingResolved[];
   agentPolicy: HookAgentPolicyResolved;
   sessionPolicy: HookSessionPolicyResolved;
+  githubSecret?: string;
 };
 
 export type HookAgentPolicyResolved = {
@@ -75,6 +81,7 @@ export function resolveHooksConfig(cfg: OpenClawConfig): HooksConfigResolved | n
       "hooks.allowedSessionKeyPrefixes must include 'hook:' when hooks.defaultSessionKey is unset",
     );
   }
+  const githubSecret = cfg.hooks?.github?.secret?.trim() || undefined;
   return {
     basePath: trimmed,
     token,
@@ -90,6 +97,7 @@ export function resolveHooksConfig(cfg: OpenClawConfig): HooksConfigResolved | n
       allowRequestSessionKey: cfg.hooks?.allowRequestSessionKey === true,
       allowedSessionKeyPrefixes,
     },
+    githubSecret,
   };
 }
 
@@ -192,6 +200,56 @@ export async function readJsonBody(
     return { ok: false, error: requestBodyErrorToText("CONNECTION_CLOSED") };
   }
   return { ok: false, error: result.error };
+}
+
+export async function readJsonBodyWithRaw(
+  req: IncomingMessage,
+  maxBytes: number,
+): Promise<{ ok: true; value: unknown; rawBody: string } | { ok: false; error: string }> {
+  let rawBody: string;
+  try {
+    rawBody = await readRequestBodyWithLimit(req, { maxBytes });
+  } catch (err) {
+    if (isRequestBodyLimitError(err)) {
+      if (err.code === "PAYLOAD_TOO_LARGE") return { ok: false, error: "payload too large" };
+      if (err.code === "REQUEST_BODY_TIMEOUT") return { ok: false, error: "request body timeout" };
+      return { ok: false, error: requestBodyErrorToText(err.code) };
+    }
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+  const trimmed = rawBody.trim();
+  let value: unknown = {};
+  if (trimmed) {
+    try {
+      value = JSON.parse(trimmed) as unknown;
+    } catch {
+      // non-JSON body: leave value as empty object
+    }
+  }
+  return { ok: true, value, rawBody };
+}
+
+/**
+ * Verify a GitHub webhook HMAC-SHA256 signature.
+ * @param rawBody  Raw request body string (before JSON parsing).
+ * @param signature  Value of the `X-Hub-Signature-256` header.
+ * @param secret  Webhook secret configured in the GitHub repository.
+ * @returns true if the signature is valid, false otherwise.
+ */
+export function verifyGitHubSignature(rawBody: string, signature: string, secret: string): boolean {
+  if (!signature.startsWith("sha256=")) {
+    return false;
+  }
+  const digest = createHmac("sha256", secret).update(rawBody).digest("hex");
+  const expected = `sha256=${digest}`;
+  if (expected.length !== signature.length) {
+    return false;
+  }
+  try {
+    return timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(signature, "utf8"));
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeHookHeaders(req: IncomingMessage) {

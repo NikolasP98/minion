@@ -43,12 +43,14 @@ import {
   normalizeAgentPayload,
   normalizeHookHeaders,
   normalizeWakePayload,
-  readJsonBody,
+  readJsonBodyWithRaw,
   resolveHookSessionKey,
   resolveHookTargetAgentId,
   resolveHookChannel,
   resolveHookDeliver,
+  verifyGitHubSignature,
 } from "../hooks.js";
+import { logHookEvent } from "../hooks-event-log.js";
 import { sendGatewayAuthFailure } from "../http-common.js";
 import { getBearerToken, getHeader } from "../http-utils.js";
 import { isPrivateOrLoopbackAddress, resolveGatewayClientIp } from "../net.js";
@@ -307,7 +309,7 @@ export function createHooksRequestHandler(
       return true;
     }
 
-    const body = await readJsonBody(req, hooksConfig.maxBodyBytes);
+    const body = await readJsonBodyWithRaw(req, hooksConfig.maxBodyBytes);
     if (!body.ok) {
       const status =
         body.error === "payload too large"
@@ -315,12 +317,35 @@ export function createHooksRequestHandler(
           : body.error === "request body timeout"
             ? 408
             : 400;
+      logHookEvent({
+        timestamp: new Date().toISOString(),
+        path: subPath,
+        status: "error",
+        detail: body.error,
+      });
       sendJson(res, status, { ok: false, error: body.error });
       return true;
     }
 
     const payload = typeof body.value === "object" && body.value !== null ? body.value : {};
     const headers = normalizeHookHeaders(req);
+
+    // GitHub HMAC-SHA256 signature verification
+    const githubEvent = headers["x-github-event"];
+    if (githubEvent && hooksConfig.githubSecret) {
+      const sig = headers["x-hub-signature-256"] ?? "";
+      if (!verifyGitHubSignature(body.rawBody, sig, hooksConfig.githubSecret)) {
+        logHookEvent({
+          timestamp: new Date().toISOString(),
+          path: subPath,
+          eventType: githubEvent,
+          status: "rejected",
+          detail: "invalid GitHub signature",
+        });
+        sendJson(res, 401, { ok: false, error: "invalid GitHub signature" });
+        return true;
+      }
+    }
 
     if (subPath === "wake") {
       const normalized = normalizeWakePayload(payload as Record<string, unknown>);
@@ -352,10 +377,19 @@ export function createHooksRequestHandler(
         sendJson(res, 400, { ok: false, error: sessionKey.error });
         return true;
       }
+      const targetAgentId = resolveHookTargetAgentId(hooksConfig, normalized.value.agentId);
       const runId = dispatchAgentHook({
         ...normalized.value,
         sessionKey: sessionKey.value,
-        agentId: resolveHookTargetAgentId(hooksConfig, normalized.value.agentId),
+        agentId: targetAgentId,
+      });
+      logHookEvent({
+        timestamp: new Date().toISOString(),
+        path: subPath,
+        eventType: githubEvent,
+        agentId: targetAgentId,
+        runId,
+        status: "dispatched",
       });
       sendJson(res, 202, { ok: true, runId });
       return true;
@@ -371,10 +405,23 @@ export function createHooksRequestHandler(
         });
         if (mapped) {
           if (!mapped.ok) {
+            logHookEvent({
+              timestamp: new Date().toISOString(),
+              path: subPath,
+              eventType: githubEvent,
+              status: "error",
+              detail: mapped.error,
+            });
             sendJson(res, 400, { ok: false, error: mapped.error });
             return true;
           }
           if (mapped.action === null) {
+            logHookEvent({
+              timestamp: new Date().toISOString(),
+              path: subPath,
+              eventType: githubEvent,
+              status: "skipped",
+            });
             res.statusCode = 204;
             res.end();
             return true;
@@ -383,6 +430,13 @@ export function createHooksRequestHandler(
             dispatchWakeHook({
               text: mapped.action.text,
               mode: mapped.action.mode,
+            });
+            logHookEvent({
+              timestamp: new Date().toISOString(),
+              path: subPath,
+              eventType: githubEvent,
+              status: "dispatched",
+              detail: "wake",
             });
             sendJson(res, 200, { ok: true, mode: mapped.action.mode });
             return true;
@@ -393,6 +447,13 @@ export function createHooksRequestHandler(
             return true;
           }
           if (!isHookAgentAllowed(hooksConfig, mapped.action.agentId)) {
+            logHookEvent({
+              timestamp: new Date().toISOString(),
+              path: subPath,
+              eventType: githubEvent,
+              status: "rejected",
+              detail: getHookAgentPolicyError(),
+            });
             sendJson(res, 400, { ok: false, error: getHookAgentPolicyError() });
             return true;
           }
@@ -405,10 +466,11 @@ export function createHooksRequestHandler(
             sendJson(res, 400, { ok: false, error: sessionKey.error });
             return true;
           }
+          const mappedAgentId = resolveHookTargetAgentId(hooksConfig, mapped.action.agentId);
           const runId = dispatchAgentHook({
             message: mapped.action.message,
             name: mapped.action.name ?? "Hook",
-            agentId: resolveHookTargetAgentId(hooksConfig, mapped.action.agentId),
+            agentId: mappedAgentId,
             wakeMode: mapped.action.wakeMode,
             sessionKey: sessionKey.value,
             deliver: resolveHookDeliver(mapped.action.deliver),
@@ -419,11 +481,26 @@ export function createHooksRequestHandler(
             timeoutSeconds: mapped.action.timeoutSeconds,
             allowUnsafeExternalContent: mapped.action.allowUnsafeExternalContent,
           });
+          logHookEvent({
+            timestamp: new Date().toISOString(),
+            path: subPath,
+            eventType: githubEvent,
+            agentId: mappedAgentId,
+            runId,
+            status: "dispatched",
+          });
           sendJson(res, 202, { ok: true, runId });
           return true;
         }
       } catch (err) {
         logHooks.warn(`hook mapping failed: ${String(err)}`);
+        logHookEvent({
+          timestamp: new Date().toISOString(),
+          path: subPath,
+          eventType: githubEvent,
+          status: "error",
+          detail: String(err),
+        });
         sendJson(res, 500, { ok: false, error: "hook mapping failed" });
         return true;
       }
