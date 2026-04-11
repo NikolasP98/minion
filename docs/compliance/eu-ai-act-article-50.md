@@ -75,19 +75,25 @@ Compliance reports aggregate audit log data into a format suitable for enterpris
 ### Programmatic Usage
 
 ```typescript
-import { createAuditStore } from "./audit/audit-store.js";
-import { generateComplianceReport, formatComplianceReport } from "./audit/compliance-report.js";
+import {
+  generateComplianceReport,
+  formatReport,
+  type ReportOptions,
+} from "./audit/audit-report.js";
 
-const store = createAuditStore({ dir: "~/.minion/audit", enabled: true });
+const opts: ReportOptions = {
+  start: new Date("2026-04-01"),
+  end: new Date("2026-04-30"),
+  format: "markdown",
+  auditDir: "~/.minion/audit",
+  policyVersion: "1.0.0",
+};
 
-// Read entries for a date range
-const entries = await store.readRange(new Date("2026-04-01"), new Date("2026-04-30"));
-
-// Generate structured report
-const report = generateComplianceReport(entries, new Date("2026-04-01"), new Date("2026-04-30"));
+// Generate structured report from audit logs
+const report = await generateComplianceReport(opts);
 
 // Format as markdown
-const markdown = formatComplianceReport(report);
+const markdown = formatReport(report, "markdown");
 console.log(markdown);
 ```
 
